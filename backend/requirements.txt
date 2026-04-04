@@ -4,3 +4,6 @@ pandas
 peewee
 bcrypt
 ollama
+httpx
+chardet
+python-multipart

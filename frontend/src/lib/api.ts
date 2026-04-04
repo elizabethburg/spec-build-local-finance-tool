@@ -1,36 +1,67 @@
 const BASE = "http://localhost:8000";
 
+export class OllamaUnavailableError extends Error {
+  constructor() {
+    super("Ollama not available")
+    this.name = "OllamaUnavailableError"
+  }
+}
+
+async function apiFetch(path: string, options?: RequestInit) {
+  const res = await fetch(`${BASE}${path}`, options)
+  if (res.status === 503) throw new OllamaUnavailableError()
+  return res
+}
+
 export async function getAuthStatus(): Promise<{ setup_complete: boolean }> {
-  const res = await fetch(`${BASE}/auth/status`);
-  return res.json();
+  const res = await apiFetch("/auth/status")
+  return res.json()
 }
 
 export async function setupAuth(name: string, pin: string, confirm_pin: string) {
-  const res = await fetch(`${BASE}/auth/setup`, {
+  const res = await apiFetch("/auth/setup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, pin, confirm_pin }),
-  });
-  if (!res.ok) throw new Error((await res.json()).detail);
-  return res.json(); // { recovery_phrase, session_token }
+  })
+  if (!res.ok) throw new Error((await res.json()).detail)
+  return res.json() // { recovery_phrase, session_token }
 }
 
 export async function unlockAuth(pin: string) {
-  const res = await fetch(`${BASE}/auth/unlock`, {
+  const res = await apiFetch("/auth/unlock", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ pin }),
-  });
-  if (!res.ok) throw new Error((await res.json()).detail);
-  return res.json(); // { session_token }
+  })
+  if (!res.ok) throw new Error((await res.json()).detail)
+  return res.json() // { session_token }
 }
 
 export async function getAppStatus(): Promise<{ has_transactions: boolean }> {
-  const res = await fetch(`${BASE}/status`);
-  return res.json();
+  const res = await apiFetch("/status")
+  return res.json()
 }
 
-let _sessionToken: string | null = null;
-export function setSessionToken(token: string) { _sessionToken = token; }
-export function getSessionToken() { return _sessionToken; }
-export function clearSession() { _sessionToken = null; }
+export async function uploadCSV(file: File, institution: string) {
+  const formData = new FormData()
+  formData.append("file", file)
+  formData.append("institution", institution)
+  const res = await fetch(`${BASE}/upload`, {
+    method: "POST",
+    body: formData,
+  })
+  if (res.status === 503) throw new OllamaUnavailableError()
+  if (!res.ok) throw new Error((await res.json()).detail)
+  return res.json()
+}
+
+export async function getUploadStatus() {
+  const res = await apiFetch("/upload/status")
+  return res.json()
+}
+
+let _sessionToken: string | null = null
+export function setSessionToken(token: string) { _sessionToken = token }
+export function getSessionToken() { return _sessionToken }
+export function clearSession() { _sessionToken = null }
