@@ -4,6 +4,23 @@ import json
 from database import Transaction, Institution
 import chardet
 
+# Preferred models in priority order — first one found wins
+PREFERRED_MODELS = ["llama3.2:3b", "llama3.2", "phi3.5", "gemma3:4b", "gemma3", "qwen2.5-coder:1.5b"]
+
+def _get_available_model() -> str:
+    """Return the first preferred model that's installed, or fall back to whatever is available."""
+    try:
+        installed = [m["model"] for m in ollama.list()["models"]]
+        for preferred in PREFERRED_MODELS:
+            if preferred in installed:
+                return preferred
+        # Fall back to first installed model
+        if installed:
+            return installed[0]
+    except Exception:
+        pass
+    return "llama3.2:3b"  # last resort default
+
 
 def detect_encoding(file_bytes: bytes) -> str:
     result = chardet.detect(file_bytes)
@@ -84,7 +101,7 @@ If you cannot identify date or amount columns, respond with: {{"error": "unrecog
 
     try:
         response = ollama.chat(
-            model="llama3.2",
+            model=_get_available_model(),
             messages=[{"role": "user", "content": prompt}],
             options={"temperature": 0}
         )
