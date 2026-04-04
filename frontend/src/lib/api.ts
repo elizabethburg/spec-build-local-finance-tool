@@ -89,6 +89,43 @@ export async function bulkApplyCategory(merchant_raw: string, merchant: string, 
   return res.json()
 }
 
+export async function getTransactions() {
+  const res = await apiFetch('/transactions')
+  return res.json()
+}
+
+export async function getInstitutions() {
+  const res = await apiFetch('/institutions')
+  return res.json()
+}
+
+export async function renameInstitution(id: number, name: string) {
+  const res = await apiFetch(`/institutions/${id}/name`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  return res.json()
+}
+
+export async function updateTransactionCategory(id: number, category: string) {
+  const res = await apiFetch(`/transactions/${id}/category`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ category }),
+  })
+  return res.json()
+}
+
+export async function bulkUpdateCategory(merchant_raw: string, category: string, merchant?: string) {
+  const res = await apiFetch('/transactions/bulk-category', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ merchant_raw, category, merchant }),
+  })
+  return res.json()
+}
+
 export async function getDashboard(period: string = '30d') {
   const res = await apiFetch(`/dashboard?period=${period}`)
   return res.json()

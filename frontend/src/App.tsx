@@ -7,9 +7,9 @@ import OllamaErrorScreen from './pages/OllamaErrorScreen'
 import UploadScreen from './pages/UploadScreen'
 import QAScreen from './pages/QAScreen'
 import Dashboard from './pages/Dashboard'
+import Transactions from './pages/Transactions'
 
-// Stub placeholders for now
-const Transactions = () => <div className="p-8">Transactions (coming soon)</div>
+// Stub placeholder
 const Settings = () => <div className="p-8">Settings (coming soon)</div>
 
 function AuthGate() {

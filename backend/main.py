@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import httpx
 import database
-from database import Insight, Settings
+from database import Insight, Settings, Transaction, Institution, CategorizationRule
 import auth
 import csv_processor
 import categorizer
@@ -407,3 +407,119 @@ def qa_bulk_apply(body: dict):
     ).execute()
 
     return {"updated": count}
+
+
+@app.get("/transactions")
+def get_transactions():
+    txns = list(Transaction.select().order_by(Transaction.date.desc()))
+    result = []
+    for t in txns:
+        result.append({
+            "id": t.id,
+            "date": str(t.date),
+            "merchant_raw": t.merchant_raw,
+            "merchant": t.merchant or t.merchant_raw,
+            "category": t.category or "Uncategorized",
+            "amount": float(t.amount),
+            "type": t.type,
+            "institution": t.institution,
+            "is_split": t.is_split,
+            "parent_id": t.parent_id,
+            "categorized": t.categorized,
+        })
+    return result
+
+
+@app.get("/transactions/{txn_id}")
+def get_transaction(txn_id: int):
+    try:
+        t = Transaction.get_by_id(txn_id)
+    except Transaction.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Not found")
+    splits = list(Transaction.select().where(Transaction.parent_id == txn_id))
+    return {
+        "id": t.id,
+        "date": str(t.date),
+        "merchant_raw": t.merchant_raw,
+        "merchant": t.merchant or t.merchant_raw,
+        "category": t.category or "Uncategorized",
+        "amount": float(t.amount),
+        "type": t.type,
+        "institution": t.institution,
+        "is_split": t.is_split,
+        "parent_id": t.parent_id,
+        "notes": t.notes,
+        "tags": t.tags,
+        "reconciled": t.reconciled,
+        "splits": [{"id": s.id, "category": s.category, "amount": float(s.amount)} for s in splits],
+    }
+
+
+@app.patch("/transactions/bulk-category")
+def bulk_update_category(body: dict):
+    # body: { merchant_raw, category }
+    count = Transaction.update(
+        category=body["category"],
+        categorized=True
+    ).where(
+        (Transaction.merchant_raw == body["merchant_raw"]) &
+        (Transaction.category != body["category"])
+    ).execute()
+
+    # Write/update rule
+    existing = CategorizationRule.get_or_none(
+        CategorizationRule.vendor_pattern == body["merchant_raw"].upper()
+    )
+    if existing:
+        existing.category = body["category"]
+        existing.times_applied += 1
+        existing.save()
+    else:
+        CategorizationRule.create(
+            vendor_pattern=body["merchant_raw"].upper(),
+            merchant_name=body.get("merchant", body["merchant_raw"]),
+            category=body["category"],
+            confidence="high",
+            times_applied=1
+        )
+
+    return {"updated": count}
+
+
+@app.patch("/transactions/{txn_id}/category")
+def update_category(txn_id: int, body: dict):
+    # body: { category }
+    try:
+        t = Transaction.get_by_id(txn_id)
+    except Transaction.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    old_merchant_raw = t.merchant_raw
+    Transaction.update(category=body["category"], categorized=True).where(Transaction.id == txn_id).execute()
+
+    # Count similar uncategorized OR differently-categorized transactions with same merchant_raw
+    similar = Transaction.select().where(
+        (Transaction.merchant_raw == old_merchant_raw) &
+        (Transaction.id != txn_id) &
+        (Transaction.category != body["category"])
+    )
+    similar_count = similar.count()
+
+    return {"ok": True, "similar_count": similar_count, "merchant_raw": old_merchant_raw}
+
+
+@app.get("/institutions")
+def get_institutions():
+    insts = list(Institution.select())
+    return [{"id": i.id, "name_raw": i.name_raw, "name_display": i.name_display} for i in insts]
+
+
+@app.patch("/institutions/{inst_id}/name")
+def rename_institution(inst_id: int, body: dict):
+    try:
+        inst = Institution.get_by_id(inst_id)
+    except Institution.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Not found")
+    inst.name_display = body["name"]
+    inst.save()
+    return {"ok": True}
