@@ -143,4 +143,13 @@ Respond with ONLY valid JSON:
             "alternatives": alts,
         })
 
-    return {"auto_categorized": auto_count, "qa_queue": qa_queue}
+    # Deduplicate by merchant_raw — one card per unique vendor
+    seen = set()
+    deduped = []
+    for item in qa_queue:
+        key = item.get("merchant_raw", "").upper()
+        if key not in seen:
+            seen.add(key)
+            deduped.append(item)
+
+    return {"auto_categorized": auto_count, "qa_queue": deduped}

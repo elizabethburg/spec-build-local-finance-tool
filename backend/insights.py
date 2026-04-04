@@ -37,27 +37,33 @@ def generate_insight() -> str | None:
 
     top_categories = sorted(cat_totals.items(), key=lambda x: -x[1])[:8]
 
-    prompt = f"""You are analyzing a user's personal spending data. Here are their spending totals by category:
+    try:
+        name_row = Settings.get(Settings.key == "user_name")
+        name = name_row.value or "you"
+    except Exception:
+        name = "you"
+
+    prompt = f"""You are analyzing {name}'s personal spending data. Here are their spending totals by category:
 
 {json.dumps(dict(top_categories), indent=2)}
 
-Your job: find ONE non-obvious insight — a cross-category pattern, an unexpected correlation, or something the user probably hasn't noticed.
+Your job: find ONE non-obvious insight — a cross-category pattern, an unexpected correlation, or something {name} probably hasn't noticed.
 
 Critical rules:
-- NEVER give advice or tell the user what to do. No "try", "consider", "you should", "you might want to".
+- Address {name} by name (e.g. "{name}'s coffee spend..."). Never say "the user".
+- NEVER give advice or tell {name} what to do. No "try", "consider", "you should", "you might want to".
 - NEVER state the obvious (e.g., "Groceries is your biggest expense").
 - ONLY surface something that isn't immediately visible in the spending totals above.
-- Write ONE sentence. Curious and observational. First person is fine ("Your coffee spend is...").
+- Write ONE sentence. Curious and observational.
 - If you cannot find anything genuinely non-obvious, respond with exactly: null
 
 Examples of BAD insights (too obvious or prescriptive):
-- "You spent the most on Groceries." (obvious from data)
+- "{name} spent the most on Groceries." (obvious from data)
 - "Consider reducing your dining expenses." (prescriptive)
-- "You might want to track your subscriptions." (advice)
 
 Examples of GOOD insights:
-- "Your subscription spending across 4 services exceeds your dining total, even though dining feels more visible day-to-day."
-- "Coffee and dining together account for nearly as much as your largest single category."
+- "{name}'s subscription spending across 4 services exceeds the dining total, even though dining feels more visible day-to-day."
+- "Coffee and dining together account for nearly as much as {name}'s largest single category."
 
 Respond with ONLY the insight sentence, or the word null."""
 

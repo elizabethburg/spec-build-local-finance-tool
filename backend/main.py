@@ -618,6 +618,24 @@ def update_insight_mode(body: dict):
     return {"ok": True}
 
 
+@app.get("/categories")
+def get_categories():
+    """Return all distinct categories in use, merged with the default list."""
+    DEFAULT = [
+        "Groceries", "Dining & Bars", "Coffee & Cafes", "Transportation",
+        "Gas & Fuel", "Travel & Hotels", "Shopping & Retail", "General Household",
+        "Entertainment", "Health & Medical", "Subscriptions", "Utilities & Bills",
+        "Income", "Transfer", "Other"
+    ]
+    from_txns = [
+        t.category for t in Transaction.select(Transaction.category).where(
+            Transaction.category.is_null(False)
+        ).distinct()
+    ]
+    merged = list(dict.fromkeys(DEFAULT + from_txns))  # dedupe, preserve order
+    return merged
+
+
 @app.get("/rules")
 def get_rules():
     rules = list(database.CategorizationRule.select())

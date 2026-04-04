@@ -12,6 +12,7 @@ interface QACardProps {
   }
   progress: { current: number; total: number }
   onAnswer: (merchant: string, category: string) => void
+  allCategories?: string[]
 }
 
 const CATEGORIES = [
@@ -24,7 +25,7 @@ const CATEGORIES = [
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
 
-export default function QACard({ card, progress, onAnswer }: QACardProps) {
+export default function QACard({ card, progress, onAnswer, allCategories }: QACardProps) {
   const [customText, setCustomText] = useState('')
   const [showCustom, setShowCustom] = useState(false)
 
@@ -129,11 +130,12 @@ export default function QACard({ card, progress, onAnswer }: QACardProps) {
             className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors text-sm text-gray-500"
           >
             <span className="font-medium text-blue-600 mr-2">{LETTERS[categoryOptions.length]}</span>
-            Other — type your own...
+            Other — choose or type...
           </button>
         ) : (
           <div className="space-y-2">
             <input
+              list="qa-categories"
               type="text"
               value={customText}
               onChange={e => setCustomText(e.target.value)}
@@ -141,6 +143,11 @@ export default function QACard({ card, progress, onAnswer }: QACardProps) {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               autoFocus
             />
+            <datalist id="qa-categories">
+              {(allCategories ?? CATEGORIES).map(cat => (
+                <option key={cat} value={cat} />
+              ))}
+            </datalist>
             <button
               onClick={() => customText && onAnswer(merchantName, customText)}
               disabled={!customText}

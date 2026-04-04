@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { getRules, updateRule, deleteRule, Rule } from '../lib/api'
+import { getRules, updateRule, deleteRule } from '../lib/api'
+import type { Rule } from '../lib/api'
 
 interface RulesModalProps {
   onClose: () => void

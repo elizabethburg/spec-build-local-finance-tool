@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import QACard from './QACard'
-import { getNextQACard, submitQAAnswer, bulkApplyCategory } from '../lib/api'
+import FileDropzone from './FileDropzone'
+import { getNextQACard, submitQAAnswer, bulkApplyCategory, getCategories } from '../lib/api'
 
 interface UploadModalProps {
   onClose: () => void
@@ -11,7 +12,8 @@ type Phase = 'upload' | 'uploading' | 'qa' | 'bulk-apply' | 'done' | 'error'
 export default function UploadModal({ onClose }: UploadModalProps) {
   const [phase, setPhase] = useState<Phase>('upload')
   const [file, setFile] = useState<File | null>(null)
-  const [institution, setInstitution] = useState('My Bank')
+  const [institution, setInstitution] = useState('')
+  const [knownInstitutions, setKnownInstitutions] = useState<string[]>([])
   const [message, setMessage] = useState('')
   const [uploadResult, setUploadResult] = useState<{ saved: number; duplicates: number } | null>(null)
   const [card, setCard] = useState<any>(null)
@@ -20,6 +22,20 @@ export default function UploadModal({ onClose }: UploadModalProps) {
   const [similarCount, setSimilarCount] = useState(0)
   const [similarMerchantRaw, setSimilarMerchantRaw] = useState('')
   const [summary, setSummary] = useState({ categorized: 0, total: 0 })
+  const [allCategories, setAllCategories] = useState<string[]>([])
+
+  useEffect(() => {
+    getCategories().then(setAllCategories).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetch('http://localhost:8000/institutions')
+      .then(r => r.json())
+      .then((data: { name_display: string }[]) =>
+        setKnownInstitutions(data.map(i => i.name_display))
+      )
+      .catch(() => {})
+  }, [])
 
   async function handleUpload() {
     if (!file) return
@@ -82,13 +98,21 @@ export default function UploadModal({ onClose }: UploadModalProps) {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Institution name</label>
-                <input type="text" value={institution} onChange={e => setInstitution(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input
+                  type="text"
+                  list="modal-institution-options"
+                  value={institution}
+                  onChange={e => setInstitution(e.target.value)}
+                  placeholder="Chase, Amex, Fidelity..."
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <datalist id="modal-institution-options">
+                  {knownInstitutions.map(name => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">CSV file</label>
-                <input type="file" accept=".csv" onChange={e => setFile(e.target.files?.[0] || null)} className="text-sm" />
-              </div>
+              <FileDropzone file={file} onFile={setFile} />
               <button onClick={handleUpload} disabled={!file}
                 className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-40 hover:bg-blue-700">
                 Upload
@@ -102,7 +126,7 @@ export default function UploadModal({ onClose }: UploadModalProps) {
             </div>
           )}
           {phase === 'qa' && card && (
-            <QACard card={card} progress={progress} onAnswer={handleAnswer} />
+            <QACard key={card.id} card={card} progress={progress} onAnswer={handleAnswer} allCategories={allCategories} />
           )}
           {phase === 'bulk-apply' && pendingAnswer && (
             <div className="space-y-4">

@@ -69,11 +69,12 @@ def process_csv(file_bytes: bytes, institution_name: str = "Unknown") -> dict:
         Transaction.create(**row)
         saved += 1
 
-    # Upsert institution
-    Institution.get_or_create(
-        name_raw=institution_name,
-        defaults={"name_display": institution_name}
-    )
+    # Upsert institution — match by name_raw or name_display (handles renamed tabs)
+    inst = Institution.get_or_none(Institution.name_raw == institution_name)
+    if inst is None:
+        inst = Institution.get_or_none(Institution.name_display == institution_name)
+    if inst is None:
+        Institution.create(name_raw=institution_name, name_display=institution_name)
 
     return {"saved": saved, "duplicates": duplicates, "errors": []}
 

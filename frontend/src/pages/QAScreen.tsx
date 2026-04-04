@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import QACard from '../components/QACard'
-import { getNextQACard, submitQAAnswer, bulkApplyCategory } from '../lib/api'
+import { getNextQACard, submitQAAnswer, bulkApplyCategory, getCategories } from '../lib/api'
 
 type Phase = 'loading' | 'card' | 'bulk-apply' | 'done'
 
@@ -13,10 +13,12 @@ export default function QAScreen() {
   const [similarCount, setSimilarCount] = useState(0)
   const [similarMerchantRaw, setSimilarMerchantRaw] = useState('')
   const [summary, setSummary] = useState({ categorized: 0, total: 0 })
+  const [allCategories, setAllCategories] = useState<string[]>([])
   const navigate = useNavigate()
 
   useEffect(() => {
     fetchNext()
+    getCategories().then(setAllCategories).catch(() => {})
   }, [])
 
   async function fetchNext() {
@@ -114,7 +116,7 @@ export default function QAScreen() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
       <div className="max-w-md w-full mx-auto p-6">
-        {card && <QACard card={card} progress={progress} onAnswer={handleAnswer} />}
+        {card && <QACard key={card.id} card={card} progress={progress} onAnswer={handleAnswer} allCategories={allCategories} />}
       </div>
     </div>
   )

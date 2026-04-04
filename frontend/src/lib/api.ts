@@ -163,6 +163,11 @@ export async function updateInsightMode(mode: 'always' | 'new_only') {
   return res.json()
 }
 
+export async function getCategories(): Promise<string[]> {
+  const res = await apiFetch('/categories')
+  return res.json()
+}
+
 export interface Rule {
   id: number
   vendor_pattern: string

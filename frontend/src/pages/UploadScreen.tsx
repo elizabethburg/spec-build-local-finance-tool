@@ -1,13 +1,24 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import FileDropzone from '../components/FileDropzone'
 
 export default function UploadScreen() {
-  const [institution, setInstitution] = useState('My Bank')
+  const [institution, setInstitution] = useState('')
   const [file, setFile] = useState<File | null>(null)
+  const [knownInstitutions, setKnownInstitutions] = useState<string[]>([])
   const [state, setState] = useState<'idle' | 'uploading' | 'complete' | 'error'>('idle')
   const [message, setMessage] = useState('')
   const [result, setResult] = useState<{ saved: number; duplicates: number } | null>(null)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    fetch('http://localhost:8000/institutions')
+      .then(r => r.json())
+      .then((data: { name_display: string }[]) =>
+        setKnownInstitutions(data.map(i => i.name_display))
+      )
+      .catch(() => {})
+  }, [])
 
   async function handleUpload() {
     if (!file) return
@@ -52,21 +63,19 @@ export default function UploadScreen() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Institution name (optional)</label>
               <input
                 type="text"
+                list="institution-options"
                 value={institution}
                 onChange={e => setInstitution(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Chase, Amex, Fidelity..."
               />
+              <datalist id="institution-options">
+                {knownInstitutions.map(name => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">CSV file</label>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={e => setFile(e.target.files?.[0] || null)}
-                className="w-full text-sm text-gray-600"
-              />
-            </div>
+            <FileDropzone file={file} onFile={setFile} />
             {state === 'error' && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{message}</div>
             )}
