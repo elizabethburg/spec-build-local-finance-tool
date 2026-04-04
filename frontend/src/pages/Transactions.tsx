@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import TopNav from '../components/TopNav'
 import UploadModal from '../components/UploadModal'
+import TransactionModal from '../components/TransactionModal'
+import SplitModal from '../components/SplitModal'
 import { getTransactions, getInstitutions, renameInstitution, updateTransactionCategory, bulkUpdateCategory } from '../lib/api'
 
 const CATEGORIES = [
@@ -41,6 +43,8 @@ export default function Transactions() {
   const [renameValue, setRenameValue] = useState('')
   const [useGenericLabels, setUseGenericLabels] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [selectedTxn, setSelectedTxn] = useState<number | null>(null)
+  const [splitTarget, setSplitTarget] = useState<{ id: number; amount: number } | null>(null)
   const categoryDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -198,18 +202,19 @@ export default function Transactions() {
                 <>
                   <tr
                     key={txn.id}
-                    className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                    className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => setSelectedTxn(txn.id)}
                   >
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{txn.date}</td>
                     <td className="px-4 py-3 text-gray-900">
                       <div className="flex items-center gap-1.5">
                         {txn.is_split && (
                           <button
-                            onClick={() => setExpandedRows(prev => {
+                            onClick={(e) => { e.stopPropagation(); setExpandedRows(prev => {
                               const next = new Set(prev)
                               next.has(txn.id) ? next.delete(txn.id) : next.add(txn.id)
                               return next
-                            })}
+                            }); }}
                             className="text-gray-400 hover:text-gray-600 text-xs"
                             title="Expand splits"
                           >
@@ -219,7 +224,7 @@ export default function Transactions() {
                         {txn.merchant}
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       {editingCategory === txn.id ? (
                         <div ref={categoryDropdownRef} className="relative">
                           <select
@@ -260,6 +265,23 @@ export default function Transactions() {
           </table>
         </div>
       </main>
+
+      {selectedTxn && (
+        <TransactionModal
+          txnId={selectedTxn}
+          onClose={() => setSelectedTxn(null)}
+          onSave={loadData}
+          onSplit={(id, amount) => { setSelectedTxn(null); setSplitTarget({ id, amount }) }}
+        />
+      )}
+      {splitTarget && (
+        <SplitModal
+          txnId={splitTarget.id}
+          totalAmount={splitTarget.amount}
+          onClose={() => setSplitTarget(null)}
+          onSave={loadData}
+        />
+      )}
     </>
   )
 }

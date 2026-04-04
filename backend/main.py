@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import httpx
 import database
-from database import Insight, Settings, Transaction, Institution, CategorizationRule
+from database import Insight, Settings, Transaction, Institution, CategorizationRule, SplitItem
 import auth
 import csv_processor
 import categorizer
@@ -430,31 +430,6 @@ def get_transactions():
     return result
 
 
-@app.get("/transactions/{txn_id}")
-def get_transaction(txn_id: int):
-    try:
-        t = Transaction.get_by_id(txn_id)
-    except Transaction.DoesNotExist:
-        raise HTTPException(status_code=404, detail="Not found")
-    splits = list(Transaction.select().where(Transaction.parent_id == txn_id))
-    return {
-        "id": t.id,
-        "date": str(t.date),
-        "merchant_raw": t.merchant_raw,
-        "merchant": t.merchant or t.merchant_raw,
-        "category": t.category or "Uncategorized",
-        "amount": float(t.amount),
-        "type": t.type,
-        "institution": t.institution,
-        "is_split": t.is_split,
-        "parent_id": t.parent_id,
-        "notes": t.notes,
-        "tags": t.tags,
-        "reconciled": t.reconciled,
-        "splits": [{"id": s.id, "category": s.category, "amount": float(s.amount)} for s in splits],
-    }
-
-
 @app.patch("/transactions/bulk-category")
 def bulk_update_category(body: dict):
     # body: { merchant_raw, category }
@@ -506,6 +481,103 @@ def update_category(txn_id: int, body: dict):
     similar_count = similar.count()
 
     return {"ok": True, "similar_count": similar_count, "merchant_raw": old_merchant_raw}
+
+
+@app.get("/transactions/{txn_id}")
+def get_transaction(txn_id: int):
+    try:
+        t = Transaction.get_by_id(txn_id)
+    except Transaction.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Not found")
+    splits = list(Transaction.select().where(Transaction.parent_id == txn_id))
+    return {
+        "id": t.id,
+        "date": str(t.date),
+        "merchant_raw": t.merchant_raw,
+        "merchant": t.merchant or t.merchant_raw,
+        "category": t.category or "Uncategorized",
+        "amount": float(t.amount),
+        "type": t.type,
+        "institution": t.institution,
+        "is_split": t.is_split,
+        "parent_id": t.parent_id,
+        "notes": t.notes,
+        "tags": t.tags,
+        "reconciled": t.reconciled,
+        "splits": [{"id": s.id, "category": s.category, "amount": float(s.amount)} for s in splits],
+    }
+
+
+@app.patch("/transactions/{txn_id}")
+def update_transaction(txn_id: int, body: dict):
+    try:
+        t = Transaction.get_by_id(txn_id)
+    except Transaction.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    updates = {}
+    if "date" in body: updates["date"] = body["date"]
+    if "merchant" in body: updates["merchant"] = body["merchant"]
+    if "category" in body: updates["category"] = body["category"]
+    if "amount" in body: updates["amount"] = body["amount"]
+    if "notes" in body: updates["notes"] = body["notes"]
+    if "tags" in body: updates["tags"] = body["tags"]
+    if "reconciled" in body: updates["reconciled"] = body["reconciled"]
+
+    if updates:
+        Transaction.update(**updates).where(Transaction.id == txn_id).execute()
+
+    return {"ok": True}
+
+
+@app.post("/transactions/{txn_id}/splits")
+def create_splits(txn_id: int, body: dict):
+    # body: { splits: [{ category, amount }] }
+    try:
+        t = Transaction.get_by_id(txn_id)
+    except Transaction.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    splits = body.get("splits", [])
+    total = sum(float(s["amount"]) for s in splits)
+
+    if abs(total - float(t.amount)) > 0.01:
+        raise HTTPException(status_code=400, detail=f"Splits must sum to ${float(t.amount):.2f}. Current total: ${total:.2f}")
+
+    # Clear existing splits if any
+    SplitItem.delete().where(SplitItem.transaction_id == txn_id).execute()
+    Transaction.delete().where(Transaction.parent_id == txn_id).execute()
+
+    # Create new split items
+    for s in splits:
+        SplitItem.create(transaction_id=txn_id, category=s["category"], amount=s["amount"])
+        # Also create child transaction rows for the list view
+        Transaction.create(
+            date=t.date,
+            merchant_raw=t.merchant_raw,
+            merchant=t.merchant,
+            category=s["category"],
+            amount=s["amount"],
+            type=t.type,
+            institution=t.institution,
+            is_split=False,
+            parent_id=txn_id,
+            categorized=True,
+            notes=None,
+            tags=None,
+            reconciled=False,
+        )
+
+    # Mark parent as split
+    Transaction.update(is_split=True).where(Transaction.id == txn_id).execute()
+
+    return {"ok": True, "split_count": len(splits)}
+
+
+@app.get("/transactions/{txn_id}/splits")
+def get_splits(txn_id: int):
+    splits = list(SplitItem.select().where(SplitItem.transaction_id == txn_id))
+    return [{"id": s.id, "category": s.category, "amount": float(s.amount)} for s in splits]
 
 
 @app.get("/institutions")
