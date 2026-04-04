@@ -1,0 +1,6 @@
+backend/.venv/
+backend/finance.db
+node_modules/
+frontend/dist/
+*.pyc
+__pycache__/
