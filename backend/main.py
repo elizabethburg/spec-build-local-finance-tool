@@ -6,6 +6,7 @@ import httpx
 import database
 import auth
 import csv_processor
+import categorizer
 
 ollama_available = False
 
@@ -120,6 +121,9 @@ def app_status():
 # Simple in-memory upload status store
 upload_status: dict = {"state": "idle", "message": "", "saved": 0, "duplicates": 0}
 
+# In-memory Q&A session
+qa_session: dict = {"queue": [], "index": 0, "auto_categorized": 0, "answered": 0}
+
 
 @app.post("/upload")
 async def upload_csv(file: UploadFile = File(...), institution: str = Form("Unknown")):
@@ -135,6 +139,18 @@ async def upload_csv(file: UploadFile = File(...), institution: str = Form("Unkn
 
     try:
         result = csv_processor.process_csv(file_bytes, institution)
+
+        # After saving transactions, kick off categorization
+        auto_from_rules = categorizer.apply_rules_precheck()
+        cat_result = categorizer.run_ollama_categorization()
+        global qa_session
+        qa_session = {
+            "queue": cat_result["qa_queue"],
+            "index": 0,
+            "auto_categorized": auto_from_rules + cat_result["auto_categorized"],
+            "answered": 0
+        }
+
         upload_status = {
             "state": "complete",
             "message": f"Done! Saved {result['saved']} transactions.",
@@ -158,3 +174,105 @@ async def upload_csv(file: UploadFile = File(...), institution: str = Form("Unkn
 @app.get("/upload/status")
 def get_upload_status():
     return upload_status
+
+
+@app.post("/categorize/start")
+def start_categorization():
+    """Called after upload completes. Runs rules precheck + Ollama pass."""
+    global qa_session
+    auto_from_rules = categorizer.apply_rules_precheck()
+    result = categorizer.run_ollama_categorization()
+    qa_session = {
+        "queue": result["qa_queue"],
+        "index": 0,
+        "auto_categorized": auto_from_rules + result["auto_categorized"],
+        "answered": 0
+    }
+    return {
+        "auto_categorized": qa_session["auto_categorized"],
+        "qa_count": len(qa_session["queue"])
+    }
+
+
+@app.get("/qa/next")
+def qa_next():
+    if qa_session["index"] >= len(qa_session["queue"]):
+        total_categorized = database.Transaction.select().where(database.Transaction.categorized == True).count()
+        total = database.Transaction.select().count()
+        return {"done": True, "categorized": total_categorized, "total": total}
+
+    card = qa_session["queue"][qa_session["index"]]
+    return {"done": False, "card": card, "progress": {"current": qa_session["index"] + 1, "total": len(qa_session["queue"])}}
+
+
+@app.post("/qa/answer")
+def qa_answer(body: dict):
+    """
+    body: { transaction_id, merchant, category, apply_to_similar: bool }
+    """
+    txn_id = body["transaction_id"]
+    merchant = body["merchant"]
+    category = body["category"]
+
+    database.Transaction.update(
+        merchant=merchant,
+        category=category,
+        categorized=True
+    ).where(database.Transaction.id == txn_id).execute()
+
+    qa_session["answered"] += 1
+
+    # Check for similar vendor strings (same raw merchant, uncategorized)
+    txn = database.Transaction.get_by_id(txn_id)
+    similar = database.Transaction.select().where(
+        (database.Transaction.merchant_raw == txn.merchant_raw) &
+        (database.Transaction.id != txn_id) &
+        (database.Transaction.categorized == False)
+    )
+    similar_count = similar.count()
+
+    # Write or update categorization rule
+    existing_rule = database.CategorizationRule.get_or_none(
+        database.CategorizationRule.vendor_pattern == txn.merchant_raw.upper()
+    )
+    if existing_rule:
+        existing_rule.merchant_name = merchant
+        existing_rule.category = category
+        existing_rule.times_applied += 1
+        existing_rule.save()
+    else:
+        database.CategorizationRule.create(
+            vendor_pattern=txn.merchant_raw.upper(),
+            merchant_name=merchant,
+            category=category,
+            confidence="high",
+            times_applied=1
+        )
+
+    # Advance queue
+    qa_session["index"] += 1
+
+    return {
+        "ok": True,
+        "similar_count": similar_count,
+        "similar_merchant_raw": txn.merchant_raw if similar_count > 0 else None
+    }
+
+
+@app.post("/qa/bulk-apply")
+def qa_bulk_apply(body: dict):
+    """Apply merchant+category to all transactions with same merchant_raw."""
+    merchant_raw = body["merchant_raw"]
+    merchant = body["merchant"]
+    category = body["category"]
+
+    count = database.Transaction.update(
+        merchant=merchant,
+        category=category,
+        categorized=True
+    ).where(
+        (database.Transaction.merchant_raw == merchant_raw) &
+        (database.Transaction.categorized == False)
+    ).execute()
+
+    return {"updated": count}

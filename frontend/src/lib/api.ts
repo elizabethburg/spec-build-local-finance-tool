@@ -61,6 +61,34 @@ export async function getUploadStatus() {
   return res.json()
 }
 
+export async function startCategorization() {
+  const res = await apiFetch('/categorize/start', { method: 'POST' })
+  return res.json()
+}
+
+export async function getNextQACard() {
+  const res = await apiFetch('/qa/next')
+  return res.json()
+}
+
+export async function submitQAAnswer(transaction_id: number, merchant: string, category: string) {
+  const res = await apiFetch('/qa/answer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transaction_id, merchant, category }),
+  })
+  return res.json()
+}
+
+export async function bulkApplyCategory(merchant_raw: string, merchant: string, category: string) {
+  const res = await apiFetch('/qa/bulk-apply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ merchant_raw, merchant, category }),
+  })
+  return res.json()
+}
+
 let _sessionToken: string | null = null
 export function setSessionToken(token: string) { _sessionToken = token }
 export function getSessionToken() { return _sessionToken }
