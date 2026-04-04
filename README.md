@@ -1,6 +1,12 @@
 # Local Finance Dashboard
 
-A local-first personal finance dashboard built with React + Vite (frontend) and FastAPI + SQLite (backend).
+A local-first personal finance dashboard built with React + Vite (frontend) and FastAPI + SQLite (backend). AI-powered insights are provided via a locally running Ollama model — no data ever leaves your machine.
+
+## Prerequisites
+
+- **Ollama** must be running locally (`ollama serve`) with a model pulled (e.g. `ollama pull llama3`)
+- **Node.js** (v18+) — install via [nvm](https://github.com/nvm-sh/nvm) or [nodejs.org](https://nodejs.org)
+- **Python 3.10+** — used for the FastAPI backend
 
 ## Quick Start
 
