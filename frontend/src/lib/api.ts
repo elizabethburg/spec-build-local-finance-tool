@@ -89,6 +89,11 @@ export async function bulkApplyCategory(merchant_raw: string, merchant: string, 
   return res.json()
 }
 
+export async function getDashboard(period: string = '30d') {
+  const res = await apiFetch(`/dashboard?period=${period}`)
+  return res.json()
+}
+
 let _sessionToken: string | null = null
 export function setSessionToken(token: string) { _sessionToken = token }
 export function getSessionToken() { return _sessionToken }

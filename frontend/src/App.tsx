@@ -6,9 +6,9 @@ import LockScreen from './pages/LockScreen'
 import OllamaErrorScreen from './pages/OllamaErrorScreen'
 import UploadScreen from './pages/UploadScreen'
 import QAScreen from './pages/QAScreen'
+import Dashboard from './pages/Dashboard'
 
 // Stub placeholders for now
-const Dashboard = () => <div className="p-8">Dashboard (coming soon)</div>
 const Transactions = () => <div className="p-8">Transactions (coming soon)</div>
 const Settings = () => <div className="p-8">Settings (coming soon)</div>
 

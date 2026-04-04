@@ -118,6 +118,91 @@ def app_status():
     return {"has_transactions": count > 0}
 
 
+@app.get("/dashboard")
+def get_dashboard(period: str = "30d"):
+    from datetime import date, timedelta
+    from collections import defaultdict
+
+    today = date.today()
+
+    if period == "30d":
+        start = today - timedelta(days=30)
+        prev_start = today - timedelta(days=60)
+        prev_end = today - timedelta(days=30)
+    elif period == "3m":
+        start = today - timedelta(days=90)
+        prev_start = today - timedelta(days=180)
+        prev_end = today - timedelta(days=90)
+    elif period == "this_month":
+        start = today.replace(day=1)
+        prev_start = (start - timedelta(days=1)).replace(day=1)
+        prev_end = start
+    else:  # "all"
+        start = date(2000, 1, 1)
+        prev_start = None
+        prev_end = None
+
+    current_txns = list(database.Transaction.select().where(
+        (database.Transaction.date >= start) & (database.Transaction.parent_id.is_null(True))
+    ))
+
+    # Total spent (debits only)
+    total_spent = sum(float(t.amount) for t in current_txns if t.type == "debit")
+
+    # Categories current
+    cat_map = {}
+    for t in current_txns:
+        if t.type == "debit" and t.category:
+            cat_map[t.category] = cat_map.get(t.category, 0) + float(t.amount)
+    categories_current = [{"name": k, "amount": round(v, 2)} for k, v in sorted(cat_map.items(), key=lambda x: -x[1])]
+
+    # Categories previous (for comparison layer)
+    categories_previous = None
+    if prev_start and prev_end:
+        prev_txns = list(database.Transaction.select().where(
+            (database.Transaction.date >= prev_start) & (database.Transaction.date < prev_end) & database.Transaction.parent_id.is_null(True)
+        ))
+        prev_cat_map = {}
+        for t in prev_txns:
+            if t.type == "debit" and t.category:
+                prev_cat_map[t.category] = prev_cat_map.get(t.category, 0) + float(t.amount)
+        categories_previous = [{"name": k, "amount": round(v, 2)} for k, v in prev_cat_map.items()]
+
+    # Area chart: monthly income vs expenses
+    monthly = defaultdict(lambda: {"income": 0.0, "expenses": 0.0})
+    for t in current_txns:
+        month_key = t.date.strftime("%b %Y") if hasattr(t.date, 'strftime') else str(t.date)[:7]
+        if t.type == "credit":
+            monthly[month_key]["income"] += float(t.amount)
+        else:
+            monthly[month_key]["expenses"] += float(t.amount)
+
+    area_chart = [
+        {"month": k, "income": round(v["income"], 2), "expenses": round(v["expenses"], 2)}
+        for k, v in sorted(monthly.items())
+    ]
+
+    # Line chart: daily spending
+    daily = defaultdict(float)
+    for t in current_txns:
+        if t.type == "debit":
+            day_key = str(t.date) if hasattr(t.date, 'strftime') else str(t.date)[:10]
+            daily[day_key] += float(t.amount)
+
+    line_chart = [
+        {"date": k, "amount": round(v, 2)}
+        for k, v in sorted(daily.items())
+    ]
+
+    return {
+        "total_spent": round(total_spent, 2),
+        "categories_current": categories_current,
+        "categories_previous": categories_previous,
+        "area_chart": area_chart,
+        "line_chart": line_chart,
+    }
+
+
 # Simple in-memory upload status store
 upload_status: dict = {"state": "idle", "message": "", "saved": 0, "duplicates": 0}
 
