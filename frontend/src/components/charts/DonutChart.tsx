@@ -4,37 +4,21 @@ const COLORS = ['#22c55e', '#3b82f6', '#f97316', '#eab308', '#8b5cf6', '#ec4899'
 
 interface DonutChartProps {
   data: { name: string; amount: number }[]
-  previousData?: { name: string; amount: number }[] | null
 }
 
-export default function DonutChart({ data, previousData }: DonutChartProps) {
+export default function DonutChart({ data }: DonutChartProps) {
   const total = data.reduce((sum, d) => sum + d.amount, 0)
 
   return (
     <div className="relative">
       <ResponsiveContainer width="100%" height={300}>
         <PieChart>
-          {previousData && previousData.length > 0 && (
-            <Pie
-              data={previousData}
-              cx="50%"
-              cy="50%"
-              outerRadius={80}
-              innerRadius={55}
-              dataKey="amount"
-              opacity={0.25}
-            >
-              {previousData.map((_, i) => (
-                <Cell key={`prev-${i}`} fill={COLORS[i % COLORS.length]} />
-              ))}
-            </Pie>
-          )}
           <Pie
             data={data}
             cx="50%"
             cy="50%"
-            outerRadius={previousData?.length ? 110 : 100}
-            innerRadius={previousData?.length ? 85 : 65}
+            outerRadius={100}
+            innerRadius={65}
             dataKey="amount"
             label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
             labelLine={false}
