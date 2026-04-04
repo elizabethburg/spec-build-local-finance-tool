@@ -94,6 +94,15 @@ export async function getDashboard(period: string = '30d') {
   return res.json()
 }
 
+export async function getInsight(): Promise<{ text: string | null; seen: boolean; id?: number }> {
+  const res = await apiFetch('/insight')
+  return res.json()
+}
+
+export async function dismissInsight() {
+  await apiFetch('/insight/dismiss', { method: 'POST' })
+}
+
 let _sessionToken: string | null = null
 export function setSessionToken(token: string) { _sessionToken = token }
 export function getSessionToken() { return _sessionToken }

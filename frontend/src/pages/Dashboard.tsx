@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import TopNav from '../components/TopNav'
+import InsightPopup from '../components/InsightPopup'
 import DonutChart from '../components/charts/DonutChart'
 import CategoryBarChart from '../components/charts/CategoryBarChart'
 import AreaChart from '../components/charts/AreaChart'
@@ -99,7 +100,7 @@ export default function Dashboard() {
           {data.categories_current.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-8">No spending data for this period</p>
           ) : chartMode === 'donut' ? (
-            <DonutChart data={data.categories_current} previousData={data.categories_previous} />
+            <DonutChart data={data.categories_current} />
           ) : (
             <CategoryBarChart data={data.categories_current} previousData={data.categories_previous} />
           )}
@@ -125,6 +126,7 @@ export default function Dashboard() {
           )}
         </div>
       </main>
+      <InsightPopup />
     </>
   )
 }

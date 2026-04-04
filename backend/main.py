@@ -4,9 +4,11 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import httpx
 import database
+from database import Insight, Settings
 import auth
 import csv_processor
 import categorizer
+import insights as insights_module
 
 ollama_available = False
 
@@ -169,16 +171,25 @@ def get_dashboard(period: str = "30d"):
         categories_previous = [{"name": k, "amount": round(v, 2)} for k, v in prev_cat_map.items()]
 
     # Area chart: monthly income vs expenses
-    monthly = defaultdict(lambda: {"income": 0.0, "expenses": 0.0})
+    # Use YYYY-MM as sort key, display as "Mon YYYY"
+    monthly = defaultdict(lambda: {"income": 0.0, "expenses": 0.0, "sort_key": ""})
     for t in current_txns:
-        month_key = t.date.strftime("%b %Y") if hasattr(t.date, 'strftime') else str(t.date)[:7]
-        if t.type == "credit":
-            monthly[month_key]["income"] += float(t.amount)
+        if hasattr(t.date, 'strftime'):
+            sort_key = t.date.strftime("%Y-%m")
+            display = t.date.strftime("%b %Y")
         else:
-            monthly[month_key]["expenses"] += float(t.amount)
+            sort_key = str(t.date)[:7]
+            display = str(t.date)[:7]
+        if sort_key not in monthly:
+            monthly[sort_key]["sort_key"] = sort_key
+            monthly[sort_key]["display"] = display
+        if t.type == "credit":
+            monthly[sort_key]["income"] += float(t.amount)
+        else:
+            monthly[sort_key]["expenses"] += float(t.amount)
 
     area_chart = [
-        {"month": k, "income": round(v["income"], 2), "expenses": round(v["expenses"], 2)}
+        {"month": v.get("display", k), "income": round(v["income"], 2), "expenses": round(v["expenses"], 2)}
         for k, v in sorted(monthly.items())
     ]
 
@@ -242,6 +253,13 @@ async def upload_csv(file: UploadFile = File(...), institution: str = Form("Unkn
             "saved": result["saved"],
             "duplicates": result["duplicates"]
         }
+
+        # Generate insight in background (non-blocking)
+        try:
+            insights_module.generate_insight()
+        except Exception:
+            pass  # Don't fail the upload if insight generation fails
+
         return upload_status
     except ValueError as e:
         err = str(e)
@@ -259,6 +277,34 @@ async def upload_csv(file: UploadFile = File(...), institution: str = Form("Unkn
 @app.get("/upload/status")
 def get_upload_status():
     return upload_status
+
+
+@app.get("/insight")
+def get_insight():
+    # Get the most recent unseen insight, or most recent overall
+    latest = Insight.select().order_by(Insight.generated_at.desc()).first()
+    if not latest or not latest.text:
+        return {"text": None, "seen": True}
+
+    # Check insight mode setting
+    try:
+        mode_row = Settings.get(Settings.key == "insight_mode")
+        insight_mode = mode_row.value
+    except Settings.DoesNotExist:
+        insight_mode = "new_only"
+
+    if insight_mode == "always" or not latest.seen:
+        return {"text": latest.text, "seen": latest.seen, "id": latest.id}
+    return {"text": None, "seen": True}
+
+
+@app.post("/insight/dismiss")
+def dismiss_insight():
+    latest = Insight.select().order_by(Insight.generated_at.desc()).first()
+    if latest:
+        latest.seen = True
+        latest.save()
+    return {"ok": True}
 
 
 @app.post("/categorize/start")
