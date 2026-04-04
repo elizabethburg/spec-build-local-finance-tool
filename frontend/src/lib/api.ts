@@ -140,6 +140,70 @@ export async function dismissInsight() {
   await apiFetch('/insight/dismiss', { method: 'POST' })
 }
 
+export async function getSettings(): Promise<Record<string, string>> {
+  const res = await apiFetch('/settings')
+  return res.json()
+}
+
+export async function updateName(name: string) {
+  const res = await apiFetch('/settings/name', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  return res.json()
+}
+
+export async function updateInsightMode(mode: 'always' | 'new_only') {
+  const res = await apiFetch('/settings/insight-mode', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
+  })
+  return res.json()
+}
+
+export interface Rule {
+  id: number
+  vendor_pattern: string
+  merchant_name: string
+  category: string
+  confidence: string
+  times_applied: number
+}
+
+export async function getRules(): Promise<Rule[]> {
+  const res = await apiFetch('/rules')
+  return res.json()
+}
+
+export async function updateRule(
+  id: number,
+  updates: { vendor_pattern?: string; merchant_name?: string; category?: string }
+) {
+  const res = await apiFetch(`/rules/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  })
+  return res.json()
+}
+
+export async function deleteRule(id: number) {
+  const res = await apiFetch(`/rules/${id}`, { method: 'DELETE' })
+  return res.json()
+}
+
+export async function changePIN(current_pin: string, new_pin: string, confirm_new_pin: string) {
+  const res = await apiFetch('/auth/change-pin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ current_pin, new_pin, confirm_new_pin }),
+  })
+  if (!res.ok) throw new Error((await res.json()).detail)
+  return res.json()
+}
+
 let _sessionToken: string | null = null
 export function setSessionToken(token: string) { _sessionToken = token }
 export function getSessionToken() { return _sessionToken }

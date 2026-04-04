@@ -595,3 +595,66 @@ def rename_institution(inst_id: int, body: dict):
     inst.name_display = body["name"]
     inst.save()
     return {"ok": True}
+
+
+@app.get("/settings")
+def get_settings():
+    rows = list(database.Settings.select())
+    return {r.key: r.value for r in rows}
+
+
+@app.patch("/settings/name")
+def update_settings_name(body: dict):
+    database.Settings.replace(key="user_name", value=body["name"]).execute()
+    return {"ok": True}
+
+
+@app.patch("/settings/insight-mode")
+def update_insight_mode(body: dict):
+    mode = body["mode"]
+    if mode not in ("always", "new_only"):
+        raise HTTPException(status_code=400, detail="mode must be 'always' or 'new_only'")
+    database.Settings.replace(key="insight_mode", value=mode).execute()
+    return {"ok": True}
+
+
+@app.get("/rules")
+def get_rules():
+    rules = list(database.CategorizationRule.select())
+    return [
+        {
+            "id": r.id,
+            "vendor_pattern": r.vendor_pattern,
+            "merchant_name": r.merchant_name,
+            "category": r.category,
+            "confidence": r.confidence,
+            "times_applied": r.times_applied,
+        }
+        for r in rules
+    ]
+
+
+@app.patch("/rules/{rule_id}")
+def update_rule(rule_id: int, body: dict):
+    try:
+        rule = database.CategorizationRule.get_by_id(rule_id)
+    except database.CategorizationRule.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Not found")
+    if "vendor_pattern" in body:
+        rule.vendor_pattern = body["vendor_pattern"]
+    if "merchant_name" in body:
+        rule.merchant_name = body["merchant_name"]
+    if "category" in body:
+        rule.category = body["category"]
+    rule.save()
+    return {"ok": True}
+
+
+@app.delete("/rules/{rule_id}")
+def delete_rule(rule_id: int):
+    try:
+        rule = database.CategorizationRule.get_by_id(rule_id)
+    except database.CategorizationRule.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Not found")
+    rule.delete_instance()
+    return {"ok": True}

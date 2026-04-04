@@ -8,9 +8,7 @@ import UploadScreen from './pages/UploadScreen'
 import QAScreen from './pages/QAScreen'
 import Dashboard from './pages/Dashboard'
 import Transactions from './pages/Transactions'
-
-// Stub placeholder
-const Settings = () => <div className="p-8">Settings (coming soon)</div>
+import Settings from './pages/Settings'
 
 function AuthGate() {
   const [status, setStatus] = useState<'loading' | 'setup' | 'lock'>('loading')
