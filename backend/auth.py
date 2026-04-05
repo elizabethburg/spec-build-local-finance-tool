@@ -28,11 +28,6 @@ def generate_session_token() -> str:
     active_sessions[token] = True
     return token
 
-def invalidate_session(token: str):
-    active_sessions.pop(token, None)
-
-def is_valid_session(token: str) -> bool:
-    return active_sessions.get(token, False)
 
 def generate_recovery_phrase() -> str:
     words = secrets.SystemRandom().sample(WORD_LIST, 6)

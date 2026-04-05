@@ -104,7 +104,7 @@ export default function UploadModal({ onClose }: UploadModalProps) {
                   value={institution}
                   onChange={e => setInstitution(e.target.value)}
                   placeholder="Chase, Amex, Fidelity..."
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-dusk"
                 />
                 <datalist id="modal-institution-options">
                   {knownInstitutions.map(name => (
@@ -114,14 +114,14 @@ export default function UploadModal({ onClose }: UploadModalProps) {
               </div>
               <FileDropzone file={file} onFile={setFile} />
               <button onClick={handleUpload} disabled={!file}
-                className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-40 hover:bg-blue-700">
+                className="w-full bg-dusk text-white rounded-lg py-2 text-sm font-medium disabled:opacity-40 hover:bg-dusk/90">
                 Upload
               </button>
             </div>
           )}
           {phase === 'uploading' && (
             <div className="text-center space-y-3 py-4">
-              <div className="animate-spin w-7 h-7 border-2 border-blue-600 border-t-transparent rounded-full mx-auto" />
+              <div className="animate-spin w-7 h-7 border-2 border-dusk border-t-transparent rounded-full mx-auto" />
               <p className="text-sm text-gray-500">Analyzing your file...</p>
             </div>
           )}
@@ -134,29 +134,29 @@ export default function UploadModal({ onClose }: UploadModalProps) {
                 <span className="font-semibold">{similarCount}</span> other transactions from this vendor. Apply <strong>{pendingAnswer.category}</strong> to all?
               </p>
               <div className="space-y-2">
-                <button onClick={() => handleBulkApply(true)} className="w-full text-left px-4 py-3 rounded-lg border border-blue-300 bg-blue-50 text-sm">
-                  <span className="font-medium text-blue-600 mr-2">A</span> Yes, update all
+                <button onClick={() => handleBulkApply(true)} className="w-full text-left px-4 py-3 rounded-lg border border-dusk/30 bg-dusk/5 text-sm">
+                  <span className="font-medium text-dusk mr-2">A</span> Yes, update all
                 </button>
                 <button onClick={() => handleBulkApply(false)} className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 text-sm">
-                  <span className="font-medium text-blue-600 mr-2">B</span> No thanks
+                  <span className="font-medium text-dusk mr-2">B</span> No thanks
                 </button>
               </div>
             </div>
           )}
           {phase === 'error' && (
             <div className="space-y-4">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{message}</div>
+              <div className="bg-clay/10 border border-clay/30 rounded-lg p-3 text-sm text-clay">{message}</div>
               <button onClick={() => setPhase('upload')} className="w-full border border-gray-200 rounded-lg py-2 text-sm text-gray-600">Try again</button>
             </div>
           )}
           {phase === 'done' && (
             <div className="space-y-4 text-center">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800 space-y-1">
+              <div className="bg-sage/10 border border-sage/30 rounded-lg p-4 text-sm text-sage space-y-1">
                 <p className="font-medium">Done!</p>
                 {uploadResult && <p>{uploadResult.saved} transactions saved{uploadResult.duplicates > 0 ? `, ${uploadResult.duplicates} duplicates skipped` : ''}</p>}
                 <p>{summary.categorized} categorized</p>
               </div>
-              <button onClick={onClose} className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700">
+              <button onClick={onClose} className="w-full bg-dusk text-white rounded-lg py-2 text-sm font-medium hover:bg-dusk/90">
                 Done
               </button>
             </div>

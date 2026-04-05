@@ -15,6 +15,8 @@ interface TransactionModalProps {
   onSplit: (txnId: number, amount: number) => void
 }
 
+const inputClass = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-dusk"
+
 export default function TransactionModal({ txnId, onClose, onSave, onSplit }: TransactionModalProps) {
   const [txn, setTxn] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -63,7 +65,7 @@ export default function TransactionModal({ txnId, onClose, onSave, onSplit }: Tr
 
   if (loading) return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full" />
+      <div className="animate-spin w-6 h-6 border-2 border-dusk border-t-transparent rounded-full" />
     </div>
   )
 
@@ -80,13 +82,13 @@ export default function TransactionModal({ txnId, onClose, onSave, onSplit }: Tr
               <label className="block text-xs font-medium text-gray-500 mb-1">Date</label>
               <input type="date" value={form.date}
                 onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className={inputClass} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Amount</label>
               <input type="number" step="0.01" value={form.amount}
                 onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className={inputClass} />
             </div>
           </div>
 
@@ -94,7 +96,7 @@ export default function TransactionModal({ txnId, onClose, onSave, onSplit }: Tr
             <label className="block text-xs font-medium text-gray-500 mb-1">Merchant</label>
             <input type="text" value={form.merchant}
               onChange={e => setForm(f => ({ ...f, merchant: e.target.value }))}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className={inputClass} />
             {txn && txn.merchant_raw !== form.merchant && (
               <p className="text-xs text-gray-400 mt-1 font-mono">Raw: {txn.merchant_raw}</p>
             )}
@@ -104,7 +106,7 @@ export default function TransactionModal({ txnId, onClose, onSave, onSplit }: Tr
             <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
             <select value={form.category}
               onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              className={`${inputClass} bg-white`}>
               {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
@@ -113,7 +115,7 @@ export default function TransactionModal({ txnId, onClose, onSave, onSplit }: Tr
             <label className="block text-xs font-medium text-gray-500 mb-1">Notes</label>
             <textarea value={form.notes} rows={2}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className={`${inputClass} resize-none`}
               placeholder="Add a note..." />
           </div>
 
@@ -121,16 +123,17 @@ export default function TransactionModal({ txnId, onClose, onSave, onSplit }: Tr
             <label className="block text-xs font-medium text-gray-500 mb-1">Tags</label>
             <input type="text" value={form.tags}
               onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={inputClass}
               placeholder="Comma-separated tags" />
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => setForm(f => ({ ...f, reconciled: !f.reconciled }))}
-              className={`w-5 h-5 rounded border flex items-center justify-center ${form.reconciled ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'}`}
+              className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${form.reconciled ? 'bg-sage border-sage text-white' : 'border-gray-300'}`}
+              aria-label="Toggle reconciled"
             >
-              {form.reconciled && '\u2713'}
+              {form.reconciled && '✓'}
             </button>
             <span className="text-sm text-gray-600">Reconciled</span>
           </div>
@@ -139,14 +142,14 @@ export default function TransactionModal({ txnId, onClose, onSave, onSplit }: Tr
         <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
           <button
             onClick={() => onSplit(txnId, parseFloat(form.amount))}
-            className="text-sm text-blue-600 hover:text-blue-800"
+            className="text-sm text-dusk hover:text-dusk/70"
           >
             Split Transaction
           </button>
           <div className="flex gap-2">
             <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
             <button onClick={handleSave} disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-40">
+              className="px-4 py-2 bg-dusk text-white rounded-lg text-sm font-medium hover:bg-dusk/90 disabled:opacity-40">
               {saving ? 'Saving...' : 'Save'}
             </button>
           </div>

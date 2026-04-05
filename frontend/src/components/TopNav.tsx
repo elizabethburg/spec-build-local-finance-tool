@@ -19,13 +19,13 @@ export default function TopNav({ onUploadClick }: TopNavProps) {
       <div className="flex items-center gap-6">
         <Link to="/dashboard" className={linkClass('/dashboard')}>Dashboard</Link>
         <Link to="/transactions" className={linkClass('/transactions')}>Transactions</Link>
-        <span className="text-sm font-medium text-gray-300 cursor-default select-none">Analytics</span>
-        <span className="text-sm font-medium text-gray-300 cursor-default select-none">Learnings</span>
+        <span className="text-sm font-medium text-gray-300 cursor-default select-none" role="menuitem" aria-disabled="true">Analytics</span>
+        <span className="text-sm font-medium text-gray-300 cursor-default select-none" role="menuitem" aria-disabled="true">Learnings</span>
         <Link to="/settings" className={linkClass('/settings')}>Settings</Link>
       </div>
       <button
         onClick={onUploadClick}
-        className="text-sm font-medium text-blue-600 border border-blue-200 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition-colors"
+        className="text-sm font-medium text-dusk border border-dusk/30 rounded-lg px-3 py-1.5 hover:bg-dusk/5 transition-colors"
       >
         + Upload
       </button>

@@ -39,10 +39,10 @@ export default function FileDropzone({ onFile, file }: FileDropzoneProps) {
       className={`
         w-full rounded-lg border-2 border-dashed px-6 py-8 text-center cursor-pointer transition-colors
         ${dragging
-          ? 'border-blue-400 bg-blue-50'
+          ? 'border-dusk/60 bg-dusk/5'
           : file
-          ? 'border-green-400 bg-green-50'
-          : 'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50'
+          ? 'border-sage/60 bg-sage/5'
+          : 'border-gray-300 bg-gray-50 hover:border-dusk/60 hover:bg-dusk/5'
         }
       `}
     >
@@ -55,8 +55,8 @@ export default function FileDropzone({ onFile, file }: FileDropzoneProps) {
       />
       {file ? (
         <div className="space-y-1">
-          <p className="text-sm font-medium text-green-700">{file.name}</p>
-          <p className="text-xs text-green-600">Click to choose a different file</p>
+          <p className="text-sm font-medium text-sage">{file.name}</p>
+          <p className="text-xs text-sage/70">Click to choose a different file</p>
         </div>
       ) : (
         <div className="space-y-1">

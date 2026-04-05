@@ -100,19 +100,6 @@ def auth_change_pin(body: dict):
     return {"ok": True}
 
 
-@app.post("/auth/reset")
-def auth_reset(body: dict):
-    if body["new_pin"] != body["confirm_new_pin"]:
-        raise HTTPException(status_code=400, detail="PINs do not match")
-    try:
-        row = database.Settings.get(database.Settings.key == "recovery_phrase_hash")
-    except database.Settings.DoesNotExist:
-        raise HTTPException(status_code=400, detail="No recovery phrase set")
-    if not auth.verify_phrase(body["recovery_phrase"], row.value):
-        raise HTTPException(status_code=401, detail="Incorrect recovery phrase")
-    database.Settings.replace(key="pin_hash", value=auth.hash_pin(body["new_pin"])).execute()
-    return {"ok": True}
-
 
 @app.get("/status")
 def app_status():
@@ -126,6 +113,7 @@ def get_dashboard(period: str = "30d"):
     from collections import defaultdict
 
     today = date.today()
+    end = None  # upper bound for the period (None = no upper limit)
 
     if period == "30d":
         start = today - timedelta(days=30)
@@ -139,14 +127,24 @@ def get_dashboard(period: str = "30d"):
         start = today.replace(day=1)
         prev_start = (start - timedelta(days=1)).replace(day=1)
         prev_end = start
+    elif period == "same_month_ly":
+        # Same calendar month, one year ago
+        start = today.replace(year=today.year - 1, day=1)
+        if start.month == 12:
+            end = start.replace(year=start.year + 1, month=1)
+        else:
+            end = start.replace(month=start.month + 1)
+        prev_start = None
+        prev_end = None
     else:  # "all"
         start = date(2000, 1, 1)
         prev_start = None
         prev_end = None
 
-    current_txns = list(database.Transaction.select().where(
-        (database.Transaction.date >= start) & (database.Transaction.parent_id.is_null(True))
-    ))
+    period_filter = (database.Transaction.date >= start) & database.Transaction.parent_id.is_null(True)
+    if end:
+        period_filter = period_filter & (database.Transaction.date < end)
+    current_txns = list(database.Transaction.select().where(period_filter))
 
     # Total spent (debits only)
     total_spent = sum(float(t.amount) for t in current_txns if t.type == "debit")
@@ -193,24 +191,48 @@ def get_dashboard(period: str = "30d"):
         for k, v in sorted(monthly.items())
     ]
 
-    # Line chart: daily spending
-    daily = defaultdict(float)
-    for t in current_txns:
-        if t.type == "debit":
-            day_key = str(t.date) if hasattr(t.date, 'strftime') else str(t.date)[:10]
-            daily[day_key] += float(t.amount)
+    # Total income (credits in period)
+    total_income = sum(float(t.amount) for t in current_txns if t.type == "credit")
 
-    line_chart = [
-        {"date": k, "amount": round(v, 2)}
-        for k, v in sorted(daily.items())
+    # Daily cashflow: income (positive) and expenses (positive) per day
+    daily_income_map = defaultdict(float)
+    daily_expense_map = defaultdict(float)
+    daily_category_map = defaultdict(lambda: defaultdict(float))
+    for t in current_txns:
+        day_key = str(t.date) if hasattr(t.date, 'strftime') else str(t.date)[:10]
+        if t.type == "credit":
+            daily_income_map[day_key] += float(t.amount)
+        else:
+            daily_expense_map[day_key] += float(t.amount)
+            if t.category:
+                daily_category_map[day_key][t.category] += float(t.amount)
+
+    all_days = sorted(set(list(daily_income_map.keys()) + list(daily_expense_map.keys())))
+    daily_cashflow = [
+        {
+            "date": day,
+            "income": round(daily_income_map[day], 2),
+            "expenses": round(daily_expense_map[day], 2),
+            "by_category": {k: round(v, 2) for k, v in daily_category_map[day].items()},
+        }
+        for day in all_days
     ]
+
+    # Global category max across all time — pins Y-axis so periods are visually comparable
+    all_txns = list(database.Transaction.select().where(database.Transaction.parent_id.is_null(True)))
+    global_cat = {}
+    for t in all_txns:
+        if t.type == "debit" and t.category:
+            global_cat[t.category] = global_cat.get(t.category, 0) + float(t.amount)
+    global_category_max = round(max(global_cat.values()), 2) if global_cat else None
 
     return {
         "total_spent": round(total_spent, 2),
+        "total_income": round(total_income, 2),
         "categories_current": categories_current,
         "categories_previous": categories_previous,
-        "area_chart": area_chart,
-        "line_chart": line_chart,
+        "daily_cashflow": daily_cashflow,
+        "global_category_max": global_category_max,
     }
 
 
@@ -676,3 +698,25 @@ def delete_rule(rule_id: int):
         raise HTTPException(status_code=404, detail="Not found")
     rule.delete_instance()
     return {"ok": True}
+
+
+RECOMMENDED_MODELS = ["llama3.2:3b", "llama3.2", "phi3.5", "gemma3:4b", "gemma3", "qwen2.5-coder:1.5b"]
+
+@app.get("/ollama/models")
+def get_ollama_models():
+    """Return installed Ollama models, flagging which one will be used and which are recommended."""
+    try:
+        import ollama as _ollama
+        installed = [m["model"] for m in _ollama.list()["models"]]
+    except Exception:
+        return {"running": False, "installed": [], "active": None, "recommended": RECOMMENDED_MODELS}
+
+    # Active = first preferred model found, or first installed
+    active = next((m for m in RECOMMENDED_MODELS if m in installed), installed[0] if installed else None)
+
+    return {
+        "running": True,
+        "installed": installed,
+        "active": active,
+        "recommended": RECOMMENDED_MODELS,
+    }

@@ -25,6 +25,10 @@ const CATEGORIES = [
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
 
+const optionBase = "w-full text-left px-4 py-3 rounded-lg border transition-colors text-sm"
+const optionDefault = `${optionBase} border-gray-200 hover:border-dusk/40 hover:bg-dusk/5`
+const optionSuggested = `${optionBase} border-dusk/30 bg-dusk/5`
+
 export default function QACard({ card, progress, onAnswer, allCategories }: QACardProps) {
   const [customText, setCustomText] = useState('')
   const [showCustom, setShowCustom] = useState(false)
@@ -47,19 +51,16 @@ export default function QACard({ card, progress, onAnswer, allCategories }: QACa
         <div className="space-y-2">
           <button
             onClick={() => onAnswer(card.suggested_merchant || card.merchant_raw, card.suggested_category)}
-            className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors text-sm"
+            className={optionDefault}
           >
-            <span className="font-medium text-blue-600 mr-2">A</span>
+            <span className="font-medium text-dusk mr-2">A</span>
             {card.suggested_merchant || card.merchant_raw}
             <span className="text-gray-400 text-xs ml-2">({card.suggested_category})</span>
           </button>
 
           {!showCustom ? (
-            <button
-              onClick={() => setShowCustom(true)}
-              className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors text-sm text-gray-500"
-            >
-              <span className="font-medium text-blue-600 mr-2">B</span>
+            <button onClick={() => setShowCustom(true)} className={`${optionDefault} text-gray-500`}>
+              <span className="font-medium text-dusk mr-2">B</span>
               Type your own...
             </button>
           ) : (
@@ -69,13 +70,13 @@ export default function QACard({ card, progress, onAnswer, allCategories }: QACa
                 value={customText}
                 onChange={e => setCustomText(e.target.value)}
                 placeholder="Merchant name"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-dusk"
                 autoFocus
               />
               <button
                 onClick={() => customText && onAnswer(customText, card.suggested_category)}
                 disabled={!customText}
-                className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-40"
+                className="w-full bg-dusk text-white rounded-lg py-2 text-sm font-medium disabled:opacity-40"
               >
                 Confirm
               </button>
@@ -86,7 +87,6 @@ export default function QACard({ card, progress, onAnswer, allCategories }: QACa
     )
   }
 
-  // ambiguous_category
   const categoryOptions = card.alternatives?.length
     ? [card.suggested_category, ...card.alternatives.filter(a => a !== card.suggested_category)].slice(0, 5)
     : CATEGORIES.slice(0, 5)
@@ -114,22 +114,17 @@ export default function QACard({ card, progress, onAnswer, allCategories }: QACa
           <button
             key={cat}
             onClick={() => onAnswer(merchantName, cat)}
-            className={`w-full text-left px-4 py-3 rounded-lg border transition-colors text-sm ${
-              i === 0 ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50'
-            }`}
+            className={i === 0 ? optionSuggested : optionDefault}
           >
-            <span className="font-medium text-blue-600 mr-2">{LETTERS[i]}</span>
+            <span className="font-medium text-dusk mr-2">{LETTERS[i]}</span>
             {cat}
-            {i === 0 && <span className="text-blue-400 text-xs ml-2">suggested</span>}
+            {i === 0 && <span className="text-dusk/60 text-xs ml-2">suggested</span>}
           </button>
         ))}
 
         {!showCustom ? (
-          <button
-            onClick={() => setShowCustom(true)}
-            className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors text-sm text-gray-500"
-          >
-            <span className="font-medium text-blue-600 mr-2">{LETTERS[categoryOptions.length]}</span>
+          <button onClick={() => setShowCustom(true)} className={`${optionDefault} text-gray-500`}>
+            <span className="font-medium text-dusk mr-2">{LETTERS[categoryOptions.length]}</span>
             Other — choose or type...
           </button>
         ) : (
@@ -140,7 +135,7 @@ export default function QACard({ card, progress, onAnswer, allCategories }: QACa
               value={customText}
               onChange={e => setCustomText(e.target.value)}
               placeholder="Category name"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-dusk"
               autoFocus
             />
             <datalist id="qa-categories">
@@ -151,7 +146,7 @@ export default function QACard({ card, progress, onAnswer, allCategories }: QACa
             <button
               onClick={() => customText && onAnswer(merchantName, customText)}
               disabled={!customText}
-              className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-40"
+              className="w-full bg-dusk text-white rounded-lg py-2 text-sm font-medium disabled:opacity-40"
             >
               Confirm
             </button>

@@ -48,7 +48,6 @@ export default function SplitModal({ txnId, totalAmount, onClose, onSave }: Spli
       setError(`Splits must sum to $${totalAmount.toFixed(2)}. Current total: $${total.toFixed(2)}`)
       return
     }
-
     if (parsed.some(s => s.amount <= 0)) {
       setError('Each split must have a positive amount')
       return
@@ -75,6 +74,10 @@ export default function SplitModal({ txnId, totalAmount, onClose, onSave }: Spli
 
   const currentTotal = splits.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0)
   const remaining = totalAmount - currentTotal
+  const balanced = Math.abs(remaining) < 0.01
+
+  const selectClass = "flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-dusk"
+  const inputClass = "w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-dusk"
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
@@ -86,47 +89,41 @@ export default function SplitModal({ txnId, totalAmount, onClose, onSave }: Spli
         <div className="p-6 space-y-4">
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-500">Total: <span className="font-semibold text-gray-900">${totalAmount.toFixed(2)}</span></span>
-            <span className={`text-xs ${Math.abs(remaining) < 0.01 ? 'text-green-600' : 'text-orange-500'}`}>
-              {Math.abs(remaining) < 0.01 ? '\u2713 Balanced' : `$${remaining.toFixed(2)} remaining`}
+            <span className={`text-xs ${balanced ? 'text-sage' : 'text-ochre'}`}>
+              {balanced ? '✓ Balanced' : `$${remaining.toFixed(2)} remaining`}
             </span>
           </div>
 
           {splits.map((split, i) => (
             <div key={i} className="flex items-center gap-2">
-              <select
-                value={split.category}
-                onChange={e => updateSplit(i, 'category', e.target.value)}
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
+              <select value={split.category} onChange={e => updateSplit(i, 'category', e.target.value)} className={selectClass}>
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
               <input
-                type="number"
-                step="0.01"
-                value={split.amount}
+                type="number" step="0.01" value={split.amount}
                 onChange={e => updateSplit(i, 'amount', e.target.value)}
                 placeholder="$0.00"
-                className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={inputClass}
               />
               {splits.length > 2 && (
-                <button onClick={() => removeSplit(i)} className="text-gray-300 hover:text-red-400 text-sm">&times;</button>
+                <button onClick={() => removeSplit(i)} className="text-gray-300 hover:text-clay text-sm">&times;</button>
               )}
             </div>
           ))}
 
-          <button onClick={addSplit} className="text-sm text-blue-600 hover:text-blue-800">
+          <button onClick={addSplit} className="text-sm text-dusk hover:text-dusk/70">
             + Add another split
           </button>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{error}</div>
+            <div className="bg-clay/10 border border-clay/30 rounded-lg p-3 text-sm text-clay">{error}</div>
           )}
         </div>
 
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
           <button onClick={handleSave} disabled={saving}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-40">
+            className="px-4 py-2 bg-dusk text-white rounded-lg text-sm font-medium hover:bg-dusk/90 disabled:opacity-40">
             {saving ? 'Saving...' : 'Save splits'}
           </button>
         </div>

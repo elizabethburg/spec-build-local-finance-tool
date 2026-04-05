@@ -78,6 +78,9 @@ Respond with ONLY the insight sentence, or the word null."""
         if content.lower() == "null" or not content:
             text = None
         else:
+            # Safety net: LLMs sometimes say "the user" despite instructions
+            if name and name != "you":
+                content = content.replace("The user", name).replace("the user", name)
             text = content
     except Exception:
         text = None

@@ -8,7 +8,7 @@ export default function LockScreen() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault()
     setError('')
     setLoading(true)
@@ -16,7 +16,6 @@ export default function LockScreen() {
     try {
       const data = await unlockAuth(pin)
       setSessionToken(data.session_token)
-
       const appStatus = await getAppStatus()
       if (appStatus.has_transactions) {
         navigate('/dashboard')
@@ -43,26 +42,22 @@ export default function LockScreen() {
         <p className="text-gray-500 mb-8 text-center">Enter your PIN to unlock</p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <input
-              type="password"
-              value={pin}
-              onChange={e => setPin(e.target.value)}
-              placeholder="PIN"
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 text-center text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
-              inputMode="numeric"
-              autoFocus
-            />
-          </div>
+          <input
+            type="password"
+            value={pin}
+            onChange={e => setPin(e.target.value)}
+            placeholder="PIN"
+            className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 text-center text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-dusk"
+            inputMode="numeric"
+            autoFocus
+          />
 
-          {error && (
-            <p className="text-red-600 text-sm text-center">{error}</p>
-          )}
+          {error && <p className="text-clay text-sm text-center">{error}</p>}
 
           <button
             type="submit"
             disabled={loading || pin.length === 0}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg px-4 py-3 transition-colors"
+            className="w-full bg-dusk hover:bg-dusk/90 disabled:bg-dusk/50 text-white font-semibold rounded-lg px-4 py-3 transition-colors"
           >
             {loading ? 'Unlocking...' : 'Unlock'}
           </button>
