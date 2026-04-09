@@ -249,8 +249,34 @@ def get_dashboard(period: str = "30d"):
 # Simple in-memory upload status store
 upload_status: dict = {"state": "idle", "message": "", "saved": 0, "duplicates": 0}
 
-# In-memory Q&A session
-qa_session: dict = {"queue": [], "index": 0, "auto_categorized": 0, "answered": 0}
+# Q&A session is now persisted to database, but keep in-memory cache for current session
+# This is populated on upload and read from /qa/next
+qa_session: dict = {
+    "queue": [],
+    "index": 0,
+    "auto_categorized": 0,
+    "answered": 0,
+    "total_in_session": 0,
+    "flagged_count": 0
+}
+
+def _load_qa_session():
+    """Load Q&A session from settings table."""
+    try:
+        setting = database.Settings.get(database.Settings.key == "qa_session")
+        session_data = json.loads(setting.value)
+        return session_data
+    except (database.Settings.DoesNotExist, json.JSONDecodeError):
+        return {"queue": [], "index": 0, "auto_categorized": 0, "answered": 0, "total_in_session": 0, "flagged_count": 0}
+
+def _save_qa_session(session: dict):
+    """Save Q&A session to settings table."""
+    try:
+        setting = database.Settings.get(database.Settings.key == "qa_session")
+        setting.value = json.dumps(session)
+        setting.save()
+    except database.Settings.DoesNotExist:
+        database.Settings.create(key="qa_session", value=json.dumps(session))
 
 
 @app.post("/upload")
@@ -272,12 +298,17 @@ async def upload_csv(file: UploadFile = File(...), institution: str = Form("Unkn
         auto_from_rules = categorizer.apply_rules_precheck()
         cat_result = categorizer.run_ollama_categorization()
         global qa_session
+        total_in_session = auto_from_rules + cat_result["auto_categorized"] + len(cat_result["qa_queue"])
         qa_session = {
             "queue": cat_result["qa_queue"],
             "index": 0,
             "auto_categorized": auto_from_rules + cat_result["auto_categorized"],
-            "answered": 0
+            "answered": 0,
+            "total_in_session": total_in_session,
+            "flagged_count": len([q for q in cat_result["qa_queue"] if q.get("type") == "ambiguous_category"])
         }
+        # Persist to database so it survives server restarts
+        _save_qa_session(qa_session)
 
         upload_status = {
             "state": "complete",
@@ -345,12 +376,17 @@ def start_categorization():
     global qa_session
     auto_from_rules = categorizer.apply_rules_precheck()
     result = categorizer.run_ollama_categorization()
+    total_in_session = auto_from_rules + result["auto_categorized"] + len(result["qa_queue"])
     qa_session = {
         "queue": result["qa_queue"],
         "index": 0,
         "auto_categorized": auto_from_rules + result["auto_categorized"],
-        "answered": 0
+        "answered": 0,
+        "total_in_session": total_in_session,
+        "flagged_count": len([q for q in result["qa_queue"] if q.get("type") == "ambiguous_category"])
     }
+    # Persist to database so it survives server restarts
+    _save_qa_session(qa_session)
     return {
         "auto_categorized": qa_session["auto_categorized"],
         "qa_count": len(qa_session["queue"])
@@ -359,6 +395,12 @@ def start_categorization():
 
 @app.get("/qa/next")
 def qa_next():
+    global qa_session
+    # Reload from database in case of server restart
+    db_session = _load_qa_session()
+    if db_session["queue"]:
+        qa_session = db_session
+
     # Skip already-categorized transactions in the queue
     queue_len = len(qa_session["queue"])
     start_index = qa_session["index"]
@@ -369,10 +411,17 @@ def qa_next():
             break
         qa_session["index"] += 1
 
+    # Sync updated index back to database
+    _save_qa_session(qa_session)
+
     if qa_session["index"] >= queue_len:
-        total_categorized = database.Transaction.select().where(database.Transaction.categorized == True).count()
-        total = database.Transaction.select().count()
-        return {"done": True, "categorized": total_categorized, "total": total}
+        # Return counts from this session, not entire database
+        return {
+            "done": True,
+            "categorized": qa_session["auto_categorized"] + qa_session["answered"],
+            "total": qa_session["total_in_session"],
+            "flagged": qa_session["flagged_count"]
+        }
 
     card = qa_session["queue"][qa_session["index"]]
     return {"done": False, "card": card, "progress": {"current": qa_session["index"] + 1, "total": queue_len}}
@@ -383,6 +432,12 @@ def qa_answer(body: dict):
     """
     body: { transaction_id, merchant, category, apply_to_similar: bool }
     """
+    global qa_session
+    # Reload from database in case of server restart
+    db_session = _load_qa_session()
+    if db_session["queue"]:
+        qa_session = db_session
+
     txn_id = body["transaction_id"]
     merchant = body["merchant"]
     category = body["category"]
@@ -426,6 +481,9 @@ def qa_answer(body: dict):
 
     # Advance queue
     qa_session["index"] += 1
+
+    # Persist updated session to database
+    _save_qa_session(qa_session)
 
     return {
         "ok": True,

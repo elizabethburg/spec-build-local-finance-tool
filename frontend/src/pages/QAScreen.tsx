@@ -12,7 +12,7 @@ export default function QAScreen() {
   const [pendingAnswer, setPendingAnswer] = useState<{ merchant: string; category: string } | null>(null)
   const [similarCount, setSimilarCount] = useState(0)
   const [similarMerchantRaw, setSimilarMerchantRaw] = useState('')
-  const [summary, setSummary] = useState({ categorized: 0, total: 0 })
+  const [summary, setSummary] = useState({ categorized: 0, total: 0, flagged: 0 })
   const [allCategories, setAllCategories] = useState<string[]>([])
   const navigate = useNavigate()
 
@@ -25,7 +25,11 @@ export default function QAScreen() {
     setPhase('loading')
     const data = await getNextQACard()
     if (data.done) {
-      setSummary({ categorized: data.categorized, total: data.total })
+      setSummary({
+        categorized: data.categorized,
+        total: data.total,
+        flagged: data.flagged || 0
+      })
       setPhase('done')
     } else {
       setCard(data.card)
@@ -91,7 +95,6 @@ export default function QAScreen() {
   }
 
   if (phase === 'done') {
-    const uncategorized = summary.total - summary.categorized
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-white">
         <div className="max-w-md w-full mx-auto p-8 space-y-6 text-center">
@@ -99,7 +102,7 @@ export default function QAScreen() {
             <h1 className="text-2xl font-semibold text-gray-900">All done!</h1>
             <p className="text-gray-600">
               Categorized <span className="font-semibold text-gray-900">{summary.categorized}</span> transactions.
-              {uncategorized > 0 && <span className="text-orange-600"> {uncategorized} flagged for review.</span>}
+              {summary.flagged > 0 && <span className="text-orange-600"> {summary.flagged} flagged for review.</span>}
             </p>
           </div>
           <button

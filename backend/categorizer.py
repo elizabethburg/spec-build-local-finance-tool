@@ -92,7 +92,7 @@ def run_ollama_categorization():
         for t in uncategorized
     ]
 
-    prompt = f"""You are categorizing bank transactions.
+    prompt = f"""You are categorizing bank transactions. Be strict about what goes in HIGH_CONFIDENCE.
 
 Known categorization rules (auto-apply these):
 {json.dumps(rules_context, indent=2)}
@@ -103,9 +103,19 @@ New transactions to categorize:
 {json.dumps(transactions_data, indent=2)}
 
 For each transaction, assign it to one of these three buckets:
-1. HIGH_CONFIDENCE: merchant is clear and category is obvious → auto-categorize
-2. AMBIGUOUS_MERCHANT: vendor string is garbled or unclear → needs user confirmation
-3. AMBIGUOUS_CATEGORY: merchant is clear but could fit multiple categories → needs user input
+
+1. HIGH_CONFIDENCE: ONLY for household-name merchants where category is unambiguous.
+   - Examples: STARBUCKS → Coffee & Cafes, DELTA AIR → Travel & Hotels, WHOLE FOODS → Groceries
+   - RULE: "Other" CANNOT appear in high_confidence. If you would assign "Other", use ambiguous_category instead.
+   - When in doubt, use an ambiguous bucket.
+
+2. AMBIGUOUS_MERCHANT: vendor string is unclear, garbled, or corporate-jargon without context
+   - Examples: MER12847, SYS, B2B FULFILLMENT CENTER, VENTURES MANAGEMENT INC, ABC SERVICES
+   - When the raw string doesn't match a known merchant name → needs user confirmation of who it is
+
+3. AMBIGUOUS_CATEGORY: merchant name is recognizable but could fit multiple categories
+   - Examples: TARGET could be Shopping, Groceries, or General Household
+   - Needs user to pick the right category for their specific transaction
 
 Respond with ONLY valid JSON:
 {{
@@ -113,7 +123,7 @@ Respond with ONLY valid JSON:
     {{"id": 1, "merchant": "Whole Foods", "category": "Groceries"}}
   ],
   "ambiguous_merchant": [
-    {{"id": 2, "merchant_raw": "AMZN*AB12CD", "suggested_merchant": "Amazon", "suggested_category": "Shopping & Retail"}}
+    {{"id": 2, "merchant_raw": "MER12847", "suggested_merchant": "Unknown Merchant", "suggested_category": "Other"}}
   ],
   "ambiguous_category": [
     {{"id": 3, "merchant": "Target", "suggested_category": "General Household", "alternatives": ["Shopping & Retail", "Groceries"]}}
@@ -124,7 +134,7 @@ Respond with ONLY valid JSON:
         response = ollama.chat(
             model=_get_model(),
             messages=[{"role": "user", "content": prompt}],
-            options={"temperature": 0}
+            options={"temperature": 0.1}
         )
         content = response["message"]["content"].strip()
         start = content.find("{")
@@ -140,18 +150,31 @@ Respond with ONLY valid JSON:
             for t in uncategorized
         ]}
 
-    # Auto-categorize HIGH_CONFIDENCE
+    # Auto-categorize HIGH_CONFIDENCE, but demote any with category="Other" to Q&A queue
     auto_count = 0
-    for item in result.get("high_confidence", []):
-        Transaction.update(
-            merchant=item.get("merchant", ""),
-            category=item.get("category", "Other"),
-            categorized=True
-        ).where(Transaction.id == item["id"]).execute()
-        auto_count += 1
-
-    # Build Q&A queue
     qa_queue = []
+
+    for item in result.get("high_confidence", []):
+        # If model assigned "Other" in high_confidence, don't auto-categorize — demote to Q&A instead
+        if item.get("category", "") == "Other":
+            qa_queue.append({
+                "id": item["id"],
+                "type": "ambiguous_category",
+                "merchant_raw": item.get("merchant_raw", item.get("merchant", "")),
+                "merchant": item.get("merchant", ""),
+                "suggested_category": "Other",
+                "alternatives": CATEGORIES[:6],
+            })
+        else:
+            # Normal auto-categorize
+            Transaction.update(
+                merchant=item.get("merchant", ""),
+                category=item.get("category", "Other"),
+                categorized=True
+            ).where(Transaction.id == item["id"]).execute()
+            auto_count += 1
+
+    # Build Q&A queue from ambiguous buckets
     for item in result.get("ambiguous_merchant", []):
         qa_queue.append({
             "id": item["id"],
@@ -171,11 +194,16 @@ Respond with ONLY valid JSON:
             "alternatives": alts,
         })
 
-    # Deduplicate by merchant_raw — one card per unique vendor
+    # Deduplicate by vendor pattern and card type
+    # Keep one card per unique (vendor_pattern, card_type) pair
+    # This allows both AMBIGUOUS_MERCHANT and AMBIGUOUS_CATEGORY for the same vendor
     seen = set()
     deduped = []
     for item in qa_queue:
-        key = item.get("merchant_raw", "").upper()
+        merchant_raw = item.get("merchant_raw", "")
+        pattern = _extract_vendor_pattern(merchant_raw)
+        card_type = item.get("type", "")
+        key = (pattern.upper(), card_type)
         if key not in seen:
             seen.add(key)
             deduped.append(item)
