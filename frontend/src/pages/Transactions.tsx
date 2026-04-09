@@ -3,7 +3,7 @@ import TopNav from '../components/TopNav'
 import UploadModal from '../components/UploadModal'
 import TransactionModal from '../components/TransactionModal'
 import SplitModal from '../components/SplitModal'
-import { getTransactions, getInstitutions, renameInstitution, updateTransactionCategory, bulkUpdateCategory } from '../lib/api'
+import { getTransactions, getInstitutions, renameInstitution, updateTransactionCategory, bulkUpdateCategory, deleteInstitutionTransactions } from '../lib/api'
 
 const CATEGORIES = [
   "Groceries", "Dining & Bars", "Coffee & Cafes",
@@ -45,6 +45,8 @@ export default function Transactions() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [selectedTxn, setSelectedTxn] = useState<number | null>(null)
   const [splitTarget, setSplitTarget] = useState<{ id: number; amount: number } | null>(null)
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false)
+  const [deletingBatch, setDeletingBatch] = useState(false)
   const categoryDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { loadData() }, [])
@@ -85,6 +87,19 @@ export default function Transactions() {
     setInstitutions(prev => prev.map(i => i.id === inst.id ? { ...i, name_display: renameValue.trim() } : i))
     setRenamingInst(null)
     setRenameValue('')
+  }
+
+  async function handleBatchDelete() {
+    setDeletingBatch(true)
+    try {
+      await deleteInstitutionTransactions(activeTab)
+      await loadData()
+      setActiveTab('all')
+      setShowBatchDeleteConfirm(false)
+    } catch (e) {
+      console.error('Batch delete failed:', e)
+    }
+    setDeletingBatch(false)
   }
 
   function getTabLabel(inst: Institution, index: number) {
@@ -171,14 +186,49 @@ export default function Transactions() {
             </div>
           ))}
           {institutions.length > 0 && (
-            <button
-              onClick={() => setUseGenericLabels(g => !g)}
-              className="ml-auto text-xs text-gray-400 hover:text-gray-600"
-            >
-              {useGenericLabels ? 'Show institution names' : 'Use generic labels'}
-            </button>
+            <>
+              <button
+                onClick={() => setUseGenericLabels(g => !g)}
+                className="ml-auto text-xs text-gray-400 hover:text-gray-600"
+              >
+                {useGenericLabels ? 'Show institution names' : 'Use generic labels'}
+              </button>
+              {activeTab !== 'all' && (
+                <button
+                  onClick={() => setShowBatchDeleteConfirm(true)}
+                  className="text-xs text-clay hover:text-clay/70 ml-2"
+                  title="Delete all transactions from this institution"
+                >
+                  🗑
+                </button>
+              )}
+            </>
           )}
         </div>
+
+        {/* Batch delete confirmation */}
+        {showBatchDeleteConfirm && (
+          <div className="bg-clay/10 border border-clay/30 rounded-lg p-4 space-y-3">
+            <p className="text-sm text-clay font-medium">Delete all transactions from this institution?</p>
+            <p className="text-xs text-clay/80">This cannot be undone.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowBatchDeleteConfirm(false)}
+                className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800"
+                disabled={deletingBatch}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBatchDelete}
+                disabled={deletingBatch}
+                className="px-3 py-1.5 text-xs bg-clay text-white rounded font-medium hover:bg-clay/90 disabled:opacity-40"
+              >
+                {deletingBatch ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Transaction table */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -273,6 +323,7 @@ export default function Transactions() {
           txnId={selectedTxn}
           onClose={() => setSelectedTxn(null)}
           onSave={loadData}
+          onDelete={() => { setSelectedTxn(null); loadData() }}
           onSplit={(id, amount) => { setSelectedTxn(null); setSplitTarget({ id, amount }) }}
         />
       )}

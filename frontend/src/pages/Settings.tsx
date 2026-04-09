@@ -29,13 +29,35 @@ export default function Settings() {
     active: string | null
     recommended: string[]
   } | null>(null)
+  const [settingModel, setSettingModel] = useState<string | null>(null)
+
+  async function refreshOllamaModels() {
+    const result = await fetch('http://localhost:8000/ollama/models')
+      .then(r => r.json())
+      .catch(() => ({ running: false, installed: [], active: null, recommended: [] }))
+    setOllamaInfo(result)
+  }
 
   useEffect(() => {
-    fetch('http://localhost:8000/ollama/models')
-      .then(r => r.json())
-      .then(setOllamaInfo)
-      .catch(() => setOllamaInfo({ running: false, installed: [], active: null, recommended: [] }))
+    refreshOllamaModels()
   }, [])
+
+  async function handleSetActiveModel(model: string) {
+    setSettingModel(model)
+    try {
+      const response = await fetch('http://localhost:8000/settings/active-model', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model })
+      })
+      if (response.ok) {
+        await refreshOllamaModels()
+      }
+    } catch (e) {
+      console.error('Failed to set model:', e)
+    }
+    setSettingModel(null)
+  }
 
   useEffect(() => {
     getSettings().then(settings => {
@@ -240,17 +262,28 @@ export default function Settings() {
                     const isActive = model === ollamaInfo.active
                     const isRecommended = ollamaInfo.recommended.includes(model)
                     return (
-                      <div key={model} className="flex items-center gap-2 text-sm">
-                        <span className={`font-mono ${isActive ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
-                          {model}
-                        </span>
-                        {isActive && (
-                          <span className="text-xs bg-sage/10 text-sage border border-sage/20 rounded px-1.5 py-0.5">
-                            in use
+                      <div key={model} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-mono ${isActive ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
+                            {model}
                           </span>
-                        )}
-                        {isRecommended && !isActive && (
-                          <span className="text-xs text-gray-400">recommended</span>
+                          {isActive && (
+                            <span className="text-xs bg-sage/10 text-sage border border-sage/20 rounded px-1.5 py-0.5">
+                              in use
+                            </span>
+                          )}
+                          {isRecommended && !isActive && (
+                            <span className="text-xs text-gray-400">recommended</span>
+                          )}
+                        </div>
+                        {!isActive && (
+                          <button
+                            onClick={() => handleSetActiveModel(model)}
+                            disabled={settingModel === model}
+                            className="text-xs text-dusk hover:text-dusk/70 disabled:opacity-40 font-medium"
+                          >
+                            {settingModel === model ? 'Setting...' : 'Use this'}
+                          </button>
                         )}
                       </div>
                     )

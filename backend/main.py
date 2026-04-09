@@ -349,13 +349,23 @@ def start_categorization():
 
 @app.get("/qa/next")
 def qa_next():
-    if qa_session["index"] >= len(qa_session["queue"]):
+    # Skip already-categorized transactions in the queue
+    queue_len = len(qa_session["queue"])
+    start_index = qa_session["index"]
+    while qa_session["index"] < queue_len:
+        card = qa_session["queue"][qa_session["index"]]
+        txn = database.Transaction.get_by_id(card["id"])
+        if txn.categorized == False:
+            break
+        qa_session["index"] += 1
+
+    if qa_session["index"] >= queue_len:
         total_categorized = database.Transaction.select().where(database.Transaction.categorized == True).count()
         total = database.Transaction.select().count()
         return {"done": True, "categorized": total_categorized, "total": total}
 
     card = qa_session["queue"][qa_session["index"]]
-    return {"done": False, "card": card, "progress": {"current": qa_session["index"] + 1, "total": len(qa_session["queue"])}}
+    return {"done": False, "card": card, "progress": {"current": qa_session["index"] + 1, "total": queue_len}}
 
 
 @app.post("/qa/answer")
@@ -384,9 +394,11 @@ def qa_answer(body: dict):
     )
     similar_count = similar.count()
 
-    # Write or update categorization rule
+    # Write or update categorization rule with pattern extraction
+    from categorizer import _extract_vendor_pattern
+    vendor_pattern = _extract_vendor_pattern(txn.merchant_raw)
     existing_rule = database.CategorizationRule.get_or_none(
-        database.CategorizationRule.vendor_pattern == txn.merchant_raw.upper()
+        database.CategorizationRule.vendor_pattern == vendor_pattern
     )
     if existing_rule:
         existing_rule.merchant_name = merchant
@@ -395,7 +407,7 @@ def qa_answer(body: dict):
         existing_rule.save()
     else:
         database.CategorizationRule.create(
-            vendor_pattern=txn.merchant_raw.upper(),
+            vendor_pattern=vendor_pattern,
             merchant_name=merchant,
             category=category,
             confidence="high",
@@ -463,9 +475,11 @@ def bulk_update_category(body: dict):
         (Transaction.category != body["category"])
     ).execute()
 
-    # Write/update rule
+    # Write/update rule with pattern extraction
+    from categorizer import _extract_vendor_pattern
+    vendor_pattern = _extract_vendor_pattern(body["merchant_raw"])
     existing = CategorizationRule.get_or_none(
-        CategorizationRule.vendor_pattern == body["merchant_raw"].upper()
+        CategorizationRule.vendor_pattern == vendor_pattern
     )
     if existing:
         existing.category = body["category"]
@@ -473,7 +487,7 @@ def bulk_update_category(body: dict):
         existing.save()
     else:
         CategorizationRule.create(
-            vendor_pattern=body["merchant_raw"].upper(),
+            vendor_pattern=vendor_pattern,
             merchant_name=body.get("merchant", body["merchant_raw"]),
             category=body["category"],
             confidence="high",
@@ -700,7 +714,54 @@ def delete_rule(rule_id: int):
     return {"ok": True}
 
 
-RECOMMENDED_MODELS = ["llama3.2:3b", "llama3.2", "phi3.5", "gemma3:4b", "gemma3", "qwen2.5-coder:1.5b"]
+@app.delete("/transactions/{txn_id}")
+def delete_transaction(txn_id: int):
+    """Delete a single transaction and its split children if any."""
+    try:
+        txn = database.Transaction.get_by_id(txn_id)
+    except database.Transaction.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # Delete split items if this is a split parent
+    if txn.is_split:
+        database.SplitItem.delete().where(database.SplitItem.transaction_id == txn_id).execute()
+        database.Transaction.delete().where(database.Transaction.parent_id == txn_id).execute()
+
+    # Delete the transaction itself
+    txn.delete_instance()
+    return {"ok": True}
+
+
+@app.delete("/transactions/by-institution/{institution_name}")
+def delete_institution_transactions(institution_name: str):
+    """Delete all transactions from a given institution, including splits."""
+    # Find all top-level transactions for this institution
+    top_level = database.Transaction.select().where(
+        (database.Transaction.institution == institution_name) &
+        (database.Transaction.parent_id.is_null())
+    )
+
+    deleted_count = 0
+    for txn in top_level:
+        if txn.is_split:
+            # Delete split items
+            database.SplitItem.delete().where(database.SplitItem.transaction_id == txn.id).execute()
+            # Delete split children
+            database.Transaction.delete().where(database.Transaction.parent_id == txn.id).execute()
+        txn.delete_instance()
+        deleted_count += 1
+
+    # Delete the institution record
+    try:
+        inst = database.Institution.get(database.Institution.name_raw == institution_name)
+        inst.delete_instance()
+    except database.Institution.DoesNotExist:
+        pass
+
+    return {"deleted": deleted_count}
+
+
+RECOMMENDED_MODELS = ["gemma3:4b", "gemma3", "phi3.5", "llama3.2:3b", "llama3.2", "qwen2.5-coder:1.5b"]
 
 @app.get("/ollama/models")
 def get_ollama_models():
@@ -711,8 +772,12 @@ def get_ollama_models():
     except Exception:
         return {"running": False, "installed": [], "active": None, "recommended": RECOMMENDED_MODELS}
 
-    # Active = first preferred model found, or first installed
-    active = next((m for m in RECOMMENDED_MODELS if m in installed), installed[0] if installed else None)
+    # Active = user-set model from settings, or first preferred model found, or first installed
+    active_setting = database.Setting.get_or_none(database.Setting.key == "active_model")
+    if active_setting:
+        active = active_setting.value
+    else:
+        active = next((m for m in RECOMMENDED_MODELS if m in installed), installed[0] if installed else None)
 
     return {
         "running": True,
@@ -720,3 +785,31 @@ def get_ollama_models():
         "active": active,
         "recommended": RECOMMENDED_MODELS,
     }
+
+
+@app.patch("/settings/active-model")
+def set_active_model(body: dict):
+    """Set the active Ollama model. Validates that the model is installed."""
+    model = body.get("model")
+    if not model:
+        return {"error": "model required"}, 400
+
+    # Validate it's installed
+    try:
+        import ollama as _ollama
+        installed = [m["model"] for m in _ollama.list()["models"]]
+    except Exception:
+        return {"error": "Ollama not running"}, 503
+
+    if model not in installed:
+        return {"error": f"model {model} not installed"}, 400
+
+    # Write to settings
+    existing = database.Setting.get_or_none(database.Setting.key == "active_model")
+    if existing:
+        existing.value = model
+        existing.save()
+    else:
+        database.Setting.create(key="active_model", value=model)
+
+    return {"ok": True}

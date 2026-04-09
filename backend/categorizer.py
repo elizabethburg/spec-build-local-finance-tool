@@ -1,7 +1,8 @@
 import ollama
 import json
-from database import Transaction, CategorizationRule
+from database import Transaction, CategorizationRule, Setting
 import fnmatch
+import re
 
 CATEGORIES = [
     "Groceries", "Dining & Bars", "Coffee & Cafes",
@@ -11,8 +12,42 @@ CATEGORIES = [
     "Income", "Transfer", "Other"
 ]
 
+def _extract_vendor_pattern(merchant_raw: str) -> str:
+    """
+    Extract a usable vendor pattern from a raw merchant string.
+    Examples:
+      AMZN*AB12CD → AMZN*
+      WHOLEFOO27XY274 → WHOLEFOO*
+      STARBUCKS 1234 → STARBUCKS*
+    """
+    raw = merchant_raw.upper()
+
+    # Strip trailing transaction IDs after *, #, space, or dash
+    result = re.sub(r'[\*\s\#\-][A-Z0-9]{4,}$', '*', raw)
+    if result != raw:
+        return result if result.endswith('*') else result + '*'
+
+    # Strip trailing all-digit or short-alphanum suffixes
+    result = re.sub(r'\d{3,}$', '*', raw)
+    if result != raw:
+        return result
+
+    # If it's already a clean merchant name, add * suffix for future variations
+    if len(raw) > 3 and raw.isalnum():
+        return raw + '*'
+
+    return raw
+
 def _get_model() -> str:
-    PREFERRED = ["llama3.2:3b", "llama3.2", "phi3.5", "gemma3:4b", "gemma3", "qwen2.5-coder:1.5b"]
+    PREFERRED = ["gemma3:4b", "gemma3", "phi3.5", "llama3.2:3b", "llama3.2", "qwen2.5-coder:1.5b"]
+    try:
+        # Check if user has set an active model in settings
+        active_setting = Setting.get_or_none(Setting.key == "active_model")
+        if active_setting:
+            return active_setting.value
+    except Exception:
+        pass
+
     try:
         installed = [m["model"] for m in ollama.list()["models"]]
         for p in PREFERRED:

@@ -13,14 +13,17 @@ interface TransactionModalProps {
   onClose: () => void
   onSave: () => void
   onSplit: (txnId: number, amount: number) => void
+  onDelete?: () => void
 }
 
 const inputClass = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-dusk"
 
-export default function TransactionModal({ txnId, onClose, onSave, onSplit }: TransactionModalProps) {
+export default function TransactionModal({ txnId, onClose, onSave, onSplit, onDelete }: TransactionModalProps) {
   const [txn, setTxn] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [form, setForm] = useState({
     date: '', merchant: '', category: '', amount: '', notes: '', tags: '', reconciled: false
   })
@@ -61,6 +64,21 @@ export default function TransactionModal({ txnId, onClose, onSave, onSplit }: Tr
     setSaving(false)
     onSave()
     onClose()
+  }
+
+  async function handleDelete() {
+    setDeleting(true)
+    try {
+      await fetch(`http://localhost:8000/transactions/${txnId}`, {
+        method: 'DELETE',
+      })
+      setDeleting(false)
+      onDelete?.()
+      onClose()
+    } catch (e) {
+      console.error('Delete failed:', e)
+      setDeleting(false)
+    }
   }
 
   if (loading) return (
@@ -139,19 +157,54 @@ export default function TransactionModal({ txnId, onClose, onSave, onSplit }: Tr
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-          <button
-            onClick={() => onSplit(txnId, parseFloat(form.amount))}
-            className="text-sm text-dusk hover:text-dusk/70"
-          >
-            Split Transaction
-          </button>
-          <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
-            <button onClick={handleSave} disabled={saving}
-              className="px-4 py-2 bg-dusk text-white rounded-lg text-sm font-medium hover:bg-dusk/90 disabled:opacity-40">
-              {saving ? 'Saving...' : 'Save'}
-            </button>
+        <div className="px-6 py-4 border-t border-gray-100">
+          {showDeleteConfirm ? (
+            <div className="mb-4 p-3 bg-clay/10 border border-clay/30 rounded-lg">
+              <p className="text-sm text-clay font-medium mb-2">Delete this transaction?</p>
+              <p className="text-xs text-clay/80 mb-3">This cannot be undone.</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800"
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="px-3 py-1 text-xs bg-clay text-white rounded font-medium hover:bg-clay/90 disabled:opacity-40"
+                >
+                  {deleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <div className="flex items-center justify-between">
+            <div className="flex gap-1">
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={saving || showDeleteConfirm}
+                className="text-sm text-clay hover:text-clay/70 disabled:opacity-40"
+                title="Delete transaction"
+              >
+                🗑
+              </button>
+              <button
+                onClick={() => onSplit(txnId, parseFloat(form.amount))}
+                disabled={showDeleteConfirm}
+                className="text-sm text-dusk hover:text-dusk/70 disabled:opacity-40"
+              >
+                Split Transaction
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={onClose} disabled={saving || showDeleteConfirm} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-40">Cancel</button>
+              <button onClick={handleSave} disabled={saving || showDeleteConfirm}
+                className="px-4 py-2 bg-dusk text-white rounded-lg text-sm font-medium hover:bg-dusk/90 disabled:opacity-40">
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

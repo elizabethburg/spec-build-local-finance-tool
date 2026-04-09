@@ -213,3 +213,19 @@ let _sessionToken: string | null = null
 export function setSessionToken(token: string) { _sessionToken = token }
 export function getSessionToken() { return _sessionToken }
 export function clearSession() { _sessionToken = null }
+
+export async function deleteTransaction(id: number) {
+  const res = await apiFetch(`/transactions/${id}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) throw new Error((await res.json()).detail)
+  return res.json()
+}
+
+export async function deleteInstitutionTransactions(institutionName: string) {
+  const res = await apiFetch(`/transactions/by-institution/${encodeURIComponent(institutionName)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) throw new Error((await res.json()).detail)
+  return res.json()
+}
