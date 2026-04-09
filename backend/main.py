@@ -39,7 +39,17 @@ app.add_middleware(
 
 @app.middleware("http")
 async def ollama_guard(request: Request, call_next):
-    if not ollama_available and request.url.path != "/health":
+    global ollama_available
+    if request.url.path == "/health":
+        return await call_next(request)
+    if not ollama_available:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get("http://localhost:11434", timeout=2.0)
+                ollama_available = resp.status_code < 500
+        except Exception:
+            ollama_available = False
+    if not ollama_available:
         return JSONResponse({"detail": "Ollama not available"}, status_code=503)
     return await call_next(request)
 
