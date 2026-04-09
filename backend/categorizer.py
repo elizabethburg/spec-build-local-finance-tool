@@ -1,6 +1,6 @@
 import ollama
 import json
-from database import Transaction, CategorizationRule, Setting
+from database import Transaction, CategorizationRule
 import fnmatch
 import re
 
@@ -39,15 +39,8 @@ def _extract_vendor_pattern(merchant_raw: str) -> str:
     return raw
 
 def _get_model() -> str:
+    """Select the best available Ollama model from the preferred list."""
     PREFERRED = ["gemma3:4b", "gemma3", "phi3.5", "llama3.2:3b", "llama3.2", "qwen2.5-coder:1.5b"]
-    try:
-        # Check if user has set an active model in settings
-        active_setting = Setting.get_or_none(Setting.key == "active_model")
-        if active_setting:
-            return active_setting.value
-    except Exception:
-        pass
-
     try:
         installed = [m["model"] for m in ollama.list()["models"]]
         for p in PREFERRED:

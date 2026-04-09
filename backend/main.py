@@ -320,9 +320,9 @@ def get_insight():
 
     # Check insight mode setting
     try:
-        mode_row = Settings.get(Settings.key == "insight_mode")
+        mode_row = database.Settings.get(database.Settings.key == "insight_mode")
         insight_mode = mode_row.value
-    except Settings.DoesNotExist:
+    except database.Settings.DoesNotExist:
         insight_mode = "new_only"
 
     if insight_mode == "always" or not latest.seen:
@@ -775,19 +775,15 @@ RECOMMENDED_MODELS = ["gemma3:4b", "gemma3", "phi3.5", "llama3.2:3b", "llama3.2"
 
 @app.get("/ollama/models")
 def get_ollama_models():
-    """Return installed Ollama models, flagging which one will be used and which are recommended."""
+    """Return installed Ollama models and the one that will be used."""
     try:
         import ollama as _ollama
         installed = [m["model"] for m in _ollama.list()["models"]]
     except Exception:
         return {"running": False, "installed": [], "active": None, "recommended": RECOMMENDED_MODELS}
 
-    # Active = user-set model from settings, or first preferred model found, or first installed
-    active_setting = database.Setting.get_or_none(database.Setting.key == "active_model")
-    if active_setting:
-        active = active_setting.value
-    else:
-        active = next((m for m in RECOMMENDED_MODELS if m in installed), installed[0] if installed else None)
+    # Active = first preferred model found, or first installed
+    active = next((m for m in RECOMMENDED_MODELS if m in installed), installed[0] if installed else None)
 
     return {
         "running": True,
@@ -795,31 +791,3 @@ def get_ollama_models():
         "active": active,
         "recommended": RECOMMENDED_MODELS,
     }
-
-
-@app.patch("/settings/active-model")
-def set_active_model(body: dict):
-    """Set the active Ollama model. Validates that the model is installed."""
-    model = body.get("model")
-    if not model:
-        return {"error": "model required"}, 400
-
-    # Validate it's installed
-    try:
-        import ollama as _ollama
-        installed = [m["model"] for m in _ollama.list()["models"]]
-    except Exception:
-        return {"error": "Ollama not running"}, 503
-
-    if model not in installed:
-        return {"error": f"model {model} not installed"}, 400
-
-    # Write to settings
-    existing = database.Setting.get_or_none(database.Setting.key == "active_model")
-    if existing:
-        existing.value = model
-        existing.save()
-    else:
-        database.Setting.create(key="active_model", value=model)
-
-    return {"ok": True}
