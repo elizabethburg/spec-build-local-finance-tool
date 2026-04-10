@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import httpx
+import json
 import database
 from database import Insight, Settings, Transaction, Institution, CategorizationRule, SplitItem
 import auth
