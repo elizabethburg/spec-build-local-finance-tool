@@ -29,7 +29,7 @@ export function QACard({ card, remaining, total, onAnswer }: QACardProps) {
   const [merchant, setMerchant] = useState(card.suggested_merchant || card.merchant_raw)
   const [category, setCategory] = useState(card.suggested_category || '')
   const [customCategory, setCustomCategory] = useState('')
-  const [applyToSimilar, setApplyToSimilar] = useState(false)
+  const [applyToSimilar, setApplyToSimilar] = useState(true)
 
   const activeCategory = customCategory.trim() || category
 
