@@ -17,6 +17,12 @@ export function SettingsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['rules'] }),
   })
 
+  const updateRule = useMutation({
+    mutationFn: ({ id, ...fields }: { id: number; merchant_name?: string; category?: string }) =>
+      api.updateRule(id, fields),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rules'] }),
+  })
+
   const updateInst = useMutation({
     mutationFn: ({ id, name }: { id: number; name: string }) => api.updateInstitution(id, name),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['institutions'] }),
@@ -71,21 +77,12 @@ export function SettingsPage() {
         </p>
         <div className="space-y-2">
           {rules?.map((rule: Rule) => (
-            <div key={rule.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-              <div>
-                <p className="text-sm font-medium text-[#1A1535]">{rule.merchant_name}</p>
-                <p className="text-xs text-[#94A3B8]">{rule.vendor_pattern} → {rule.category}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-[#94A3B8]">{rule.times_applied}×</span>
-                <button
-                  onClick={() => deleteRule.mutate(rule.id)}
-                  className="text-[#94A3B8] hover:text-[#F06B6B] text-sm transition-colors"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
+            <RuleRow
+              key={rule.id}
+              rule={rule}
+              onSave={(fields) => updateRule.mutate({ id: rule.id, ...fields })}
+              onDelete={() => deleteRule.mutate(rule.id)}
+            />
           ))}
           {!rules?.length && (
             <p className="text-[#94A3B8] text-sm">No rules yet — they're learned as you categorize transactions.</p>
@@ -163,6 +160,60 @@ function ChangePinForm() {
       <Button onClick={handleChange} disabled={!current || !next} size="sm">
         Change PIN
       </Button>
+    </div>
+  )
+}
+
+function RuleRow({
+  rule, onSave, onDelete
+}: {
+  rule: Rule
+  onSave: (fields: { merchant_name?: string; category?: string }) => void
+  onDelete: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(rule.merchant_name)
+  const [category, setCategory] = useState(rule.category)
+
+  function handleSave() {
+    onSave({ merchant_name: name, category })
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="py-2 border-b border-gray-50 last:border-0 space-y-2">
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="Merchant name"
+          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#4F3FF0]"
+        />
+        <input
+          value={category}
+          onChange={e => setCategory(e.target.value)}
+          placeholder="Category"
+          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#4F3FF0]"
+        />
+        <div className="flex gap-2">
+          <Button size="sm" onClick={handleSave}>Save</Button>
+          <Button size="sm" variant="ghost" onClick={() => { setName(rule.merchant_name); setCategory(rule.category); setEditing(false) }}>Cancel</Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+      <div>
+        <p className="text-sm font-medium text-[#1A1535]">{rule.merchant_name}</p>
+        <p className="text-xs text-[#94A3B8]">{rule.vendor_pattern} → {rule.category}</p>
+      </div>
+      <div className="flex items-center gap-3">
+        <span className="text-xs text-[#94A3B8]">{rule.times_applied}×</span>
+        <button onClick={() => setEditing(true)} className="text-xs text-[#4F3FF0] hover:underline">Edit</button>
+        <button onClick={onDelete} className="text-[#94A3B8] hover:text-[#F06B6B] text-sm transition-colors">Delete</button>
+      </div>
     </div>
   )
 }

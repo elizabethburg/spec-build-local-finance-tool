@@ -5,6 +5,11 @@ from schemas.transaction import TransactionOut, TransactionUpdate, SplitRequest
 from repositories import transaction_repo
 from typing import Optional
 from datetime import date
+from pydantic import BaseModel
+
+
+class BulkDeleteRequest(BaseModel):
+    ids: list[int]
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -19,6 +24,11 @@ def list_transactions(
     db: Session = Depends(get_db),
 ):
     return transaction_repo.get_filtered(db, account_id, category, from_date, to_date, search)
+
+
+@router.post("/bulk-delete", status_code=204)
+def bulk_delete_transactions(body: BulkDeleteRequest, db: Session = Depends(get_db)):
+    transaction_repo.bulk_delete(db, body.ids)
 
 
 @router.get("/{txn_id}", response_model=TransactionOut)
@@ -46,3 +56,9 @@ def split_transaction(txn_id: int, body: SplitRequest, db: Session = Depends(get
     if not txn:
         raise HTTPException(404, "Transaction not found")
     return transaction_repo.add_split(db, txn_id, body.splits)
+
+
+@router.delete("/{txn_id}", status_code=204)
+def delete_transaction(txn_id: int, db: Session = Depends(get_db)):
+    if not transaction_repo.delete(db, txn_id):
+        raise HTTPException(404, "Transaction not found")

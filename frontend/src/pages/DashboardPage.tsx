@@ -16,7 +16,7 @@ const PERIODS = [
 ]
 
 export function DashboardPage() {
-  const [period, setPeriod] = useState('this_month')
+  const [period, setPeriod] = useState('30d')
   const { data, isLoading, error } = useDashboard(period)
 
   if (isLoading) return (
@@ -94,6 +94,12 @@ export function DashboardPage() {
         </Card>
         <Card>
           <p className="text-xs text-[#94A3B8] uppercase tracking-wider mb-4">Cashflow</p>
+          {data.daily_cashflow.length === 0 && (
+            <div className="text-xs text-[#94A3B8] mb-2 px-1">
+              No transactions in this period —{' '}
+              <button onClick={() => setPeriod('all')} className="text-[#4F3FF0] underline">view all time</button>
+            </div>
+          )}
           <CashflowChart data={data.daily_cashflow} />
         </Card>
       </div>
@@ -101,7 +107,16 @@ export function DashboardPage() {
       {/* Spending categories */}
       <Card>
         <p className="text-xs text-[#94A3B8] uppercase tracking-wider mb-4">Where It Went</p>
-        <CategoryBars current={data.categories_current} previous={data.categories_previous} />
+        {data.categories_current.length === 0 ? (
+          <p className="text-sm text-[#94A3B8] py-4 text-center">
+            No categorized spending in this period.{' '}
+            {data.daily_cashflow.length === 0 && (
+              <button onClick={() => setPeriod('all')} className="text-[#4F3FF0] underline">Try all time</button>
+            )}
+          </p>
+        ) : (
+          <CategoryBars current={data.categories_current} previous={data.categories_previous} />
+        )}
       </Card>
 
       {/* Insight */}

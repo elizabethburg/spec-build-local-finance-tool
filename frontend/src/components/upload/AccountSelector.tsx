@@ -4,6 +4,14 @@ import { Account } from '../../lib/api'
 
 const ACCOUNT_TYPES = ['CHECKING', 'SAVINGS', 'CREDIT_CARD', 'INVESTMENT', 'LOAN', "I don't know"]
 
+const TYPE_LABELS: Record<string, string> = {
+  CHECKING: 'Checking',
+  SAVINGS: 'Savings',
+  CREDIT_CARD: 'Credit Card',
+  INVESTMENT: 'Investment',
+  LOAN: 'Loan',
+}
+
 interface AccountSelectorProps {
   onSelect: (params: {
     account_id?: number
@@ -18,7 +26,6 @@ export function AccountSelector({ onSelect }: AccountSelectorProps) {
   const [mode, setMode] = useState<'existing' | 'new'>('existing')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [institutionName, setInstitutionName] = useState('')
-  const [accountName, setAccountName] = useState('')
   const [accountType, setAccountType] = useState('')
 
   function handleSubmit() {
@@ -27,7 +34,6 @@ export function AccountSelector({ onSelect }: AccountSelectorProps) {
     } else {
       onSelect({
         institution_name: institutionName,
-        account_name: accountName,
         account_type: accountType === "I don't know" ? undefined : accountType,
       })
     }
@@ -82,12 +88,11 @@ export function AccountSelector({ onSelect }: AccountSelectorProps) {
             onChange={e => setInstitutionName(e.target.value)}
             className="w-full px-4 py-3 border border-gray-200 rounded-xl text-[#1A1535] text-sm focus:outline-none focus:border-[#4F3FF0]"
           />
-          <input
-            placeholder="Account name (e.g. Chase Checking)"
-            value={accountName}
-            onChange={e => setAccountName(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-[#1A1535] text-sm focus:outline-none focus:border-[#4F3FF0]"
-          />
+          {institutionName && accountType && accountType !== "I don't know" && (
+            <p className="text-xs text-[#94A3B8] px-1">
+              Account will be named <span className="text-[#4F3FF0] font-medium">"{institutionName} {TYPE_LABELS[accountType] || accountType}"</span> — rename it any time in Accounts.
+            </p>
+          )}
           <div className="grid grid-cols-3 gap-2">
             {ACCOUNT_TYPES.map(type => (
               <button
@@ -108,7 +113,7 @@ export function AccountSelector({ onSelect }: AccountSelectorProps) {
 
       <button
         onClick={handleSubmit}
-        disabled={mode === 'existing' ? !selectedId : !institutionName || !accountName}
+        disabled={mode === 'existing' ? !selectedId : !institutionName}
         className="w-full py-3 bg-[#4F3FF0] text-white rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#7B6FF5] transition-colors"
       >
         Continue
