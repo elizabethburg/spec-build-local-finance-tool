@@ -27,6 +27,8 @@ class UploadConfirmResult(BaseModel):
     net_worth: float
     net_worth_delta: Optional[float] = None
     has_qa_queue: bool
+    ai_categorized: int = 0
+    qa_count: int = 0
     insight: Optional[str] = None
 
 

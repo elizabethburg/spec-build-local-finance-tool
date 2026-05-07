@@ -20,7 +20,8 @@ def exists(db: Session, account_id: int, txn_date: date, amount: Decimal, mercha
 
 def bulk_create(db: Session, transactions: list[dict]) -> list[Transaction]:
     objs = [Transaction(**t) for t in transactions]
-    db.bulk_save_objects(objs, return_defaults=True)
+    db.add_all(objs)
+    db.flush()   # assigns IDs, keeps objects session-tracked
     db.commit()
     return objs
 
@@ -111,6 +112,21 @@ def get_category_totals(db: Session, account_ids: list[int],
         Transaction.category.isnot(None),
     ).group_by(Transaction.category).order_by(func.sum(Transaction.amount)).all()
     return [{"name": r.category, "amount": float(abs(r.total or 0))} for r in rows]
+
+
+def delete(db: Session, txn_id: int) -> bool:
+    txn = get_by_id(db, txn_id)
+    if not txn:
+        return False
+    db.delete(txn)
+    db.commit()
+    return True
+
+
+def bulk_delete(db: Session, ids: list[int]) -> int:
+    count = db.query(Transaction).filter(Transaction.id.in_(ids)).delete(synchronize_session=False)
+    db.commit()
+    return count
 
 
 def add_split(db: Session, txn_id: int, splits: list[dict]) -> Transaction:

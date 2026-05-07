@@ -96,10 +96,33 @@ export function UploadPage() {
             </div>
             <div>
               <p className="font-semibold text-[#1A1535] text-lg">
-                {upload.result.saved} transaction{upload.result.saved !== 1 ? 's' : ''} added
+                {upload.result.saved} transaction{upload.result.saved !== 1 ? 's' : ''} imported
               </p>
               {upload.result.duplicates > 0 && (
                 <p className="text-[#94A3B8] text-sm mt-0.5">{upload.result.duplicates} duplicates skipped</p>
+              )}
+            </div>
+
+            {/* AI categorization summary */}
+            <div className="bg-[#F8F7FF] rounded-xl p-4 text-left space-y-2">
+              {upload.result.ai_categorized > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[#2ECC8F] text-base">✓</span>
+                  <span className="text-sm text-[#1A1535]">
+                    <span className="font-medium">{upload.result.ai_categorized}</span> transaction{upload.result.ai_categorized !== 1 ? 's' : ''} categorized automatically
+                  </span>
+                </div>
+              )}
+              {upload.result.qa_count > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[#F5A623] text-base">!</span>
+                  <span className="text-sm text-[#1A1535]">
+                    <span className="font-medium">{upload.result.qa_count}</span> transaction{upload.result.qa_count !== 1 ? 's' : ''} need your review
+                  </span>
+                </div>
+              )}
+              {upload.result.ai_categorized === 0 && upload.result.qa_count === 0 && (
+                <p className="text-sm text-[#94A3B8]">Transactions are live on your transactions page.</p>
               )}
             </div>
 
@@ -124,7 +147,7 @@ export function UploadPage() {
                   onClick={() => navigate('/qa')}
                   className="px-5 py-2.5 bg-[#4F3FF0] text-white rounded-xl font-medium hover:bg-[#7B6FF5] transition-colors"
                 >
-                  Review transactions →
+                  Review {upload.result.qa_count} transaction{upload.result.qa_count !== 1 ? 's' : ''} →
                 </button>
               )}
               <button

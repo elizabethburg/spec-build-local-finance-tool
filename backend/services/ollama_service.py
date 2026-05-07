@@ -1,10 +1,16 @@
 import httpx
 import json
 from typing import Optional
-from models.account import AccountType
 
 OLLAMA_BASE = "http://localhost:11434"
 MODEL_PREFERENCE = ["llama3.2:3b", "llama3.2", "phi3.5", "gemma3:4b"]
+
+CATEGORIES = [
+    "Groceries", "Dining & Bars", "Coffee & Cafes", "Transportation",
+    "Shopping & Retail", "Entertainment", "Health & Medical", "Subscriptions",
+    "Utilities & Bills", "Income", "Transfer", "General Household",
+    "Gas & Fuel", "Travel & Hotels", "Other"
+]
 
 
 class OllamaService:
@@ -51,18 +57,22 @@ class OllamaService:
             pass
         return []
 
-    async def _generate(self, prompt: str, temperature: float = 0.7) -> Optional[str]:
+    async def _generate(self, prompt: str, temperature: float = 0.7,
+                        timeout: float = 60.0, format_json: bool = False) -> Optional[str]:
         model = await self.get_active_model()
         if not model:
             return None
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                r = await client.post(f"{self.base_url}/api/generate", json={
-                    "model": model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {"temperature": temperature},
-                })
+            payload: dict = {
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"temperature": temperature},
+            }
+            if format_json:
+                payload["format"] = "json"
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                r = await client.post(f"{self.base_url}/api/generate", json=payload)
                 if r.status_code == 200:
                     return r.json().get("response", "").strip()
         except Exception:
@@ -84,49 +94,72 @@ If uncertain, respond with: UNKNOWN"""
         return None
 
     async def identify_columns(self, headers: list[str], sample_rows: list[dict]) -> dict:
-        prompt = f"""Map these CSV columns to: date, merchant, amount, category (optional).
-Headers: {headers}
-Sample: {json.dumps(sample_rows[:2], default=str)}
+        prompt = f"""Map these CSV column headers to transaction fields.
 
-Respond with JSON only: {{"date": "col_name", "merchant": "col_name", "amount": "col_name", "category": "col_name_or_null"}}"""
-        result = await self._generate(prompt)
+Headers: {headers}
+Sample rows: {json.dumps(sample_rows[:2], default=str)}
+
+Return a JSON object with these keys: date, merchant, amount, category.
+Each value is the matching column header name, or null if not present.
+Example: {{"date": "Date", "merchant": "Description", "amount": "Amount", "category": null}}"""
+        result = await self._generate(prompt, format_json=True)
         if result:
             try:
-                start = result.find("{")
-                end = result.rfind("}") + 1
-                return json.loads(result[start:end])
+                return json.loads(result)
             except Exception:
                 pass
         return {}
 
     async def categorize_batch(self, transactions: list[dict]) -> list[dict]:
+        """Categorize merchants in batches. Returns list of {index, merchant, category, confidence}."""
         if not transactions:
             return []
-        categories = [
-            "Groceries", "Dining & Bars", "Coffee & Cafes", "Transportation",
-            "Shopping & Retail", "Entertainment", "Health & Medical", "Subscriptions",
-            "Utilities & Bills", "Income", "Transfer", "General Household",
-            "Gas & Fuel", "Travel & Hotels", "Other"
-        ]
-        merchants = [t.get("merchant_raw", "") for t in transactions]
-        prompt = f"""Categorize each merchant. Categories: {', '.join(categories)}
 
-Merchants:
+        all_results: list[dict] = []
+        batch_size = 15
+
+        for batch_start in range(0, len(transactions), batch_size):
+            batch = transactions[batch_start:batch_start + batch_size]
+            merchants = [t.get("merchant_raw", "") for t in batch]
+
+            prompt = f"""You are processing raw bank transaction strings. Simplify each string to get the merchant name — do NOT substitute a different brand name.
+
+Valid categories: {', '.join(CATEGORIES)}
+
+Rules:
+- "merchant" must be a simplified version of the raw string. Remove store numbers, locations, phone numbers, and trailing codes. Title Case, max 3 words.
+- Do NOT replace the merchant with a different business (e.g. if the string says "EREWHON", merchant is "Erewhon Market", not "Whole Foods")
+- "confidence" is "HIGH" if you clearly recognize this as a real business, "LOW" if you are guessing
+- Paychecks and direct deposits → category "Income"
+- Account transfers → category "Transfer"
+
+Correct examples:
+- "STARBUCKS #1234 SAN FRANCISCO CA" → merchant: "Starbucks", category: "Coffee & Cafes", confidence: "HIGH"
+- "NETFLIX.COM" → merchant: "Netflix", category: "Subscriptions", confidence: "HIGH"
+- "EREWHON MARKET LOS ANGELES CA" → merchant: "Erewhon Market", category: "Groceries", confidence: "HIGH"
+- "CVSPHARMA 04199 SF CA" → merchant: "CVS Pharmacy", category: "Health & Medical", confidence: "HIGH"
+- "PYMT 00123456" → merchant: "Pymt", category: "Transfer", confidence: "LOW"
+
+Raw strings to process:
 {chr(10).join(f'{i}: {m}' for i, m in enumerate(merchants))}
 
-Respond with JSON array: [{{"index": 0, "merchant": "clean name", "category": "category"}}]
-Return one entry per merchant in order."""
+Return a JSON object with a "results" array, one entry per raw string.
+Each entry: "index" (integer), "merchant" (string), "category" (string), "confidence" ("HIGH" or "LOW").
+Example: {{"results": [{{"index": 0, "merchant": "Starbucks", "category": "Coffee & Cafes", "confidence": "HIGH"}}]}}"""
 
-        result = await self._generate(prompt, temperature=0.1)
-        if result:
-            try:
-                start = result.find("[")
-                end = result.rfind("]") + 1
-                data = json.loads(result[start:end])
-                return data
-            except Exception:
-                pass
-        return []
+            result = await self._generate(prompt, temperature=0.1, timeout=120.0, format_json=True)
+            if result:
+                try:
+                    data = json.loads(result)
+                    batch_results = data.get("results", [])
+                    for item in batch_results:
+                        if "index" in item:
+                            item["index"] = item["index"] + batch_start
+                    all_results.extend(batch_results)
+                except Exception:
+                    pass
+
+        return all_results
 
     async def generate_insight(self, context: dict) -> Optional[str]:
         user_name = context.get("user_name", "")

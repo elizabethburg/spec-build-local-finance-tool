@@ -78,6 +78,10 @@ export const api = {
     request<Transaction>(`/transactions/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   splitTransaction: (id: number, splits: { category: string; amount: number }[]) =>
     request<Transaction>(`/transactions/${id}/split`, { method: 'POST', body: JSON.stringify({ splits }) }),
+  deleteTransaction: (id: number) =>
+    request(`/transactions/${id}`, { method: 'DELETE' }),
+  bulkDeleteTransactions: (ids: number[]) =>
+    request(`/transactions/bulk-delete`, { method: 'POST', body: JSON.stringify({ ids }) }),
 
   // Q&A
   getNextQA: () => request<QACard | { done: true }>('/qa/next'),
@@ -127,6 +131,8 @@ export interface UploadConfirmResult {
   net_worth: number
   net_worth_delta?: number
   has_qa_queue: boolean
+  ai_categorized: number
+  qa_count: number
   insight?: string
 }
 
@@ -160,6 +166,9 @@ export interface QACard {
   merchant_raw: string
   amount: number
   date: string
+  account_type: string
+  suggested_merchant?: string
+  suggested_category?: string
 }
 
 export interface Rule {

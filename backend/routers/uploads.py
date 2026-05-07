@@ -25,14 +25,15 @@ async def initiate_upload(body: UploadInitiate, db: Session = Depends(get_db)):
         if not acct:
             raise HTTPException(404, "Account not found")
     else:
-        if not body.institution_name or not body.account_name or not body.account_type:
-            raise HTTPException(400, "Provide account_id or institution_name + account_name + account_type")
+        if not body.institution_name or not body.account_type:
+            raise HTTPException(400, "Provide account_id or institution_name + account_type")
         try:
             acct_type = AccountType(body.account_type)
         except ValueError:
             raise HTTPException(400, f"Invalid account type: {body.account_type}")
         inst = get_or_create_institution(db, body.institution_name)
-        acct = account_repo.create(db, inst.id, body.account_name, acct_type)
+        account_name = body.account_name or _auto_account_name(body.institution_name, acct_type)
+        acct = account_repo.create(db, inst.id, account_name, acct_type)
 
     upload = upload_repo.create(db, acct.id, body.filename)
     return {"upload_id": upload.id}
@@ -109,13 +110,17 @@ async def confirm_upload(upload_id: int, db: Session = Depends(get_db)):
     rows_saved = 0
     rows_duplicate = 0
     has_qa_queue = False
+    ai_categorized = 0
+    qa_count = 0
 
     try:
         if account_type in (AccountType.CHECKING, AccountType.SAVINGS, AccountType.CREDIT_CARD):
-            saved, dupes, has_qa = await _process_transactions(db, rows, col_map, acct, upload, account_type)
+            saved, dupes, has_qa, ai_cat, qa_cnt = await _process_transactions(db, rows, col_map, acct, upload, account_type)
             rows_saved = saved
             rows_duplicate = dupes
             has_qa_queue = has_qa
+            ai_categorized = ai_cat
+            qa_count = qa_cnt
 
         elif account_type == AccountType.INVESTMENT:
             inv_col_map = csv_service.detect_investment_columns(pending["headers"])
@@ -153,6 +158,8 @@ async def confirm_upload(upload_id: int, db: Session = Depends(get_db)):
             net_worth=float(snap["net_worth"]),
             net_worth_delta=round(net_worth_delta, 2),
             has_qa_queue=has_qa_queue,
+            ai_categorized=ai_categorized,
+            qa_count=qa_count,
             insight=insight_text,
         )
 
@@ -185,8 +192,10 @@ async def _process_transactions(db, rows, col_map, acct, upload, account_type):
     uncategorized = categorizer_service.apply_rules_precheck(db, created, account_type.value)
     qa_items = await categorizer_service.run_ollama_categorization(db, uncategorized, account_type.value)
     has_qa = len(qa_items) > 0
+    ai_categorized = len(created) - len(qa_items)
+    qa_count = len(qa_items)
 
-    return saved, dupes, has_qa
+    return saved, dupes, has_qa, ai_categorized, qa_count
 
 
 def _process_loan(db, rows, col_map, acct, upload):
@@ -225,3 +234,16 @@ def _get_user_name(db) -> str:
 @router.get("", response_model=list[UploadOut])
 def list_uploads(db: Session = Depends(get_db)):
     return upload_repo.get_all(db)
+
+
+_TYPE_LABELS = {
+    AccountType.CHECKING: "Checking",
+    AccountType.SAVINGS: "Savings",
+    AccountType.CREDIT_CARD: "Credit Card",
+    AccountType.INVESTMENT: "Investment",
+    AccountType.LOAN: "Loan",
+}
+
+
+def _auto_account_name(institution: str, acct_type: AccountType) -> str:
+    return f"{institution} {_TYPE_LABELS.get(acct_type, acct_type.value.replace('_', ' ').title())}"

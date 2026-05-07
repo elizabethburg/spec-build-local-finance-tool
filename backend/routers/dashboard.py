@@ -31,14 +31,19 @@ def get_dashboard(period: str = Query("this_month"), db: Session = Depends(get_d
     from_date, to_date = _period_dates(period)
 
     account_summaries = []
+    total_assets = 0.0
+    total_liabilities = 0.0
     for acct in accounts:
         balance = _get_account_balance(db, acct)
         account_summaries.append(AccountSummary(id=acct.id, name=acct.name, type=acct.type.value, balance=round(balance, 2)))
+        if acct.account_class == AccountClass.ASSET:
+            total_assets += balance
+        else:
+            total_liabilities += balance
 
-    snap = net_worth_repo.get_latest(db)
-    nw = float(snap.net_worth) if snap else 0.0
-    assets = float(snap.total_assets) if snap else 0.0
-    liabilities = float(snap.total_liabilities) if snap else 0.0
+    nw = round(total_assets - total_liabilities, 2)
+    assets = round(total_assets, 2)
+    liabilities = round(total_liabilities, 2)
 
     history = net_worth_repo.get_history(db, limit=100)
     nw_history = [{"date": s.computed_at.strftime("%Y-%m-%d"), "net_worth": float(s.net_worth)} for s in history]

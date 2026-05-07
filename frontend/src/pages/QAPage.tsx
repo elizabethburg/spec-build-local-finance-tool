@@ -3,14 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, QACard as QACardType } from '../lib/api'
 import { Card } from '../components/ui/Card'
 import { QACard } from '../components/qa/QACard'
-import { useAccounts } from '../hooks/useAccounts'
 import { useNavigate } from 'react-router-dom'
 
 export function QAPage() {
   const [total, setTotal] = useState<number | null>(null)
   const qc = useQueryClient()
   const navigate = useNavigate()
-  const { data: accounts } = useAccounts()
 
   const { data: card, isLoading } = useQuery({
     queryKey: ['qa-next'],
@@ -49,20 +47,21 @@ export function QAPage() {
   )
 
   const qaCard = card as QACardType
-  const acct = accounts?.find(a => {
-    // find by matching transaction data — account type from first matching account
-    return a.is_active
-  })
+  const accountType = qaCard.account_type || 'CHECKING'
 
   return (
     <div className="max-w-md mx-auto">
-      <h1 className="text-2xl font-semibold text-[#1A1535] mb-6" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      <h1 className="text-2xl font-semibold text-[#1A1535] mb-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         Review Transactions
       </h1>
+      <p className="text-sm text-[#94A3B8] mb-6">
+        These transactions couldn't be automatically classified. Confirm or adjust each one — your choices improve future suggestions.
+      </p>
       <Card>
         <QACard
+          key={qaCard.transaction_id}
           card={qaCard}
-          accountType={acct?.type || 'CHECKING'}
+          accountType={accountType}
           remaining={0}
           total={total || 1}
           onAnswer={(merchant, category, applyToSimilar) => {
@@ -70,7 +69,7 @@ export function QAPage() {
               transaction_id: qaCard.transaction_id,
               merchant,
               category,
-              account_type: acct?.type || 'CHECKING',
+              account_type: accountType,
               apply_to_similar: applyToSimilar,
             })
           }}

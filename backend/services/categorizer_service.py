@@ -42,7 +42,10 @@ async def run_ollama_categorization(db: Session, transactions: list[Transaction]
 
     for i, txn in enumerate(transactions):
         result = result_map.get(i)
-        if result and result.get("category") and result.get("merchant"):
+        confidence = (result.get("confidence") or "").upper() if result else ""
+        has_data = result and result.get("category") and result.get("merchant")
+
+        if has_data and confidence == "HIGH":
             txn.merchant = result["merchant"]
             txn.category = result["category"]
             txn.categorized = True
@@ -54,12 +57,15 @@ async def run_ollama_categorization(db: Session, transactions: list[Transaction]
                 account_type=account_type,
             )
         else:
+            # LOW confidence or no result — send to QA with suggestion pre-filled if available
             qa_items.append({
                 "type": "AMBIGUOUS_MERCHANT",
                 "transaction_id": txn.id,
                 "merchant_raw": txn.merchant_raw,
                 "amount": float(txn.amount),
                 "date": str(txn.date),
+                "suggested_merchant": result.get("merchant") if has_data else None,
+                "suggested_category": result.get("category") if has_data else None,
             })
 
     db.commit()
@@ -117,13 +123,18 @@ def answer_qa(db: Session, transaction_id: int, merchant: str, category: str,
 def get_qa_queue(db: Session) -> list[dict]:
     from repositories import transaction_repo
     uncategorized = transaction_repo.get_uncategorized(db)
-    return [
-        {
+    result = []
+    for txn in uncategorized:
+        account_type = txn.account.type.value if txn.account else "CHECKING"
+        rule = rule_repo.find_match(db, txn.merchant_raw, account_type)
+        result.append({
             "type": "AMBIGUOUS_MERCHANT",
             "transaction_id": txn.id,
             "merchant_raw": txn.merchant_raw,
             "amount": float(txn.amount),
             "date": str(txn.date),
-        }
-        for txn in uncategorized
-    ]
+            "account_type": account_type,
+            "suggested_merchant": rule.merchant_name if rule else None,
+            "suggested_category": rule.category if rule else None,
+        })
+    return result
