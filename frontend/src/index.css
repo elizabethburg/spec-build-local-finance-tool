@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  --color-vantage-indigo: #4F3FF0;
+  --color-vantage-indigo-mid: #7B6FF5;
+  --color-vantage-indigo-pale: #EAE8FD;
+  --color-vantage-night: #1A1535;
+  --color-vantage-canvas: #F8F7FF;
+  --color-vantage-violet: #9B6DFF;
+  --color-emerge-green: #2ECC8F;
+  --color-coral: #F06B6B;
+  --color-amber-warn: #F5A623;
+
+  --font-display: 'Plus Jakarta Sans', sans-serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #F8F7FF;
+  color: #1A1535;
+  margin: 0;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
