@@ -24,3 +24,8 @@ def get_latest(db: Session) -> Optional[NetWorthSnapshot]:
 
 def get_history(db: Session, limit: int = 100) -> list[NetWorthSnapshot]:
     return db.query(NetWorthSnapshot).order_by(NetWorthSnapshot.computed_at.asc()).limit(limit).all()
+
+
+def clear_all(db: Session) -> None:
+    db.query(NetWorthSnapshot).delete()
+    db.commit()

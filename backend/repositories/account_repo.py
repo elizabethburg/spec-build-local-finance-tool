@@ -76,6 +76,8 @@ def delete(db: Session, account_id: int) -> bool:
     if not acct:
         return False
 
+    institution_id = acct.institution_id
+
     txn_ids = [t.id for t in db.query(Transaction.id).filter(Transaction.account_id == account_id).all()]
     if txn_ids:
         db.query(SplitItem).filter(SplitItem.transaction_id.in_(txn_ids)).delete(synchronize_session=False)
@@ -84,6 +86,15 @@ def delete(db: Session, account_id: int) -> bool:
     db.query(DebtSnapshot).filter(DebtSnapshot.account_id == account_id).delete(synchronize_session=False)
     db.query(Upload).filter(Upload.account_id == account_id).delete(synchronize_session=False)
     db.delete(acct)
+    db.flush()
+
+    # Remove the institution if it has no remaining accounts
+    remaining = db.query(Account).filter(Account.institution_id == institution_id).count()
+    if remaining == 0:
+        inst = db.query(Institution).filter(Institution.id == institution_id).first()
+        if inst:
+            db.delete(inst)
+
     db.commit()
     return True
 
