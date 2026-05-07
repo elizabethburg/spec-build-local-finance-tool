@@ -9,7 +9,6 @@ import { StatusBanner } from '../components/ui/StatusBanner'
 import { formatCurrency } from '../lib/format'
 
 const PERIODS = [
-  { key: 'this_month', label: 'This month' },
   { key: '30d', label: '30 days' },
   { key: '3m', label: '3 months' },
   { key: 'all', label: 'All time' },

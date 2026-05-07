@@ -13,20 +13,15 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 def _period_dates(period: str) -> tuple[date, date]:
     today = date.today()
-    if period == "30d":
-        return today - timedelta(days=30), today
     if period == "3m":
         return today - timedelta(days=90), today
-    if period == "this_month":
-        return today.replace(day=1), today
-    if period == "same_month_ly":
-        last_year = today.replace(year=today.year - 1)
-        return last_year.replace(day=1), last_year
-    return date(2000, 1, 1), today
+    if period == "all":
+        return date(2000, 1, 1), today
+    return today - timedelta(days=30), today  # default: 30d
 
 
 @router.get("", response_model=DashboardOut)
-def get_dashboard(period: str = Query("this_month"), db: Session = Depends(get_db)):
+def get_dashboard(period: str = Query("30d"), db: Session = Depends(get_db)):
     accounts = account_repo.get_all(db)
     from_date, to_date = _period_dates(period)
 

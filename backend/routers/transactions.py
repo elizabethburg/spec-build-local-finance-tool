@@ -28,7 +28,9 @@ def list_transactions(
 
 @router.post("/bulk-delete", status_code=204)
 def bulk_delete_transactions(body: BulkDeleteRequest, db: Session = Depends(get_db)):
+    from services.net_worth_service import compute_snapshot
     transaction_repo.bulk_delete(db, body.ids)
+    compute_snapshot(db)
 
 
 @router.get("/{txn_id}", response_model=TransactionOut)
@@ -60,5 +62,7 @@ def split_transaction(txn_id: int, body: SplitRequest, db: Session = Depends(get
 
 @router.delete("/{txn_id}", status_code=204)
 def delete_transaction(txn_id: int, db: Session = Depends(get_db)):
+    from services.net_worth_service import compute_snapshot
     if not transaction_repo.delete(db, txn_id):
         raise HTTPException(404, "Transaction not found")
+    compute_snapshot(db)

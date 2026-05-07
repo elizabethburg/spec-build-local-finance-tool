@@ -41,6 +41,14 @@ def update_account(account_id: int, body: AccountUpdate, db: Session = Depends(g
     return acct
 
 
+@router.delete("/{account_id}", status_code=204)
+def delete_account(account_id: int, db: Session = Depends(get_db)):
+    from services.net_worth_service import compute_snapshot
+    if not account_repo.delete(db, account_id):
+        raise HTTPException(404, "Account not found")
+    compute_snapshot(db)
+
+
 @router.get("/{account_id}/balance")
 def get_account_balance(account_id: int, db: Session = Depends(get_db)):
     from datetime import datetime

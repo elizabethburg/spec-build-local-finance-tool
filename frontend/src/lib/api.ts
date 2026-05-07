@@ -39,6 +39,8 @@ export const api = {
     request<Account>(`/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   getAccountBalance: (id: number) =>
     request<{ balance: number; as_of: string }>(`/accounts/${id}/balance`),
+  deleteAccount: (id: number) =>
+    request<void>(`/accounts/${id}`, { method: 'DELETE' }),
 
   // Uploads
   initiateUpload: (body: {
